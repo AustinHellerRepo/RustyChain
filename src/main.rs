@@ -241,34 +241,34 @@ my_macro!(Foobar, (a, b, c, d));
 
 
 macro_rules! my_macro_expanded {
-    ($name:ident, ($($field:ident),*)) => {
-        my_macro_first!($name,        (x)              ()        ()                        $($field)*);
+    ($name:ident, $from:ty => $to:ty, $($field:ident)=>*) => {
+        my_macro_first!($name, $from, $to,       (x)              ()        ()                        $($field)*);
     };
 }
 
 macro_rules! my_macro_first {
-    (                    $name:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+    (                    $name:ident, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $next,      ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+            my_macro_expanded_helper!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>], ()  ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
         }
     };
 }
 
 macro_rules! my_macro_expanded_helper {
     // In the recursive case: append another `x` into our prefix.
-    (                    $name:ident, $first:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
+    (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident, ($($past_without_first:tt)*) ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $first, $next,     ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next])    );
+            my_macro_expanded_helper!($name, $from, $to, $first, $first_name, $next, [<$($prefix)* _ $next:snake>],  ($($past_without_first)* [$($prefix)* _ [<$next:snake>]])   ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next])    );
         }
     };
-    (                    $name:ident, $first:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+    (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident, ($($past_without_first:tt)*) ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $first,      ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+            my_macro_expanded_helper!($name, $from, $to, $first, $first_name,   ($($past_without_first)* [$($prefix)* _ [<$next:snake>]])   ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
         }
     };
 
     // When there are no fields remaining.
-    ($name:ident, $first:ident, $last:ident, ($($prefix:tt)*) ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
+    ($name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident, $last:ident, $last_name:ident, ($([$($field_without_first:tt)*])*) ($($prefix:tt)*) ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
         paste::paste! {
             struct $name {
                 $(
@@ -280,43 +280,38 @@ macro_rules! my_macro_expanded_helper {
 
             #[async_trait::async_trait]
             impl ChainLink for $name {
-                type TInput = $first;
-                type TOutput = $last;
+                type TInput = $from;
+                type TOutput = $to;
 
-                async fn receive(&mut self, input: Arc<Mutex<$first>>) -> () {
-                    // TODO fix to use provided first name
-                    //self.[<$first:snake>].push(input);
-                    todo!();
+                async fn receive(&mut self, input: Arc<Mutex<$from>>) -> () {
+                    self.$first_name.receive(input).await
                 }
-                async fn send(&mut self) -> Option<Arc<Mutex<$last>>> {
-                    // TODO fix to use provided last name
-                    //self.[<$last_field:snake>].try_pop().map(|element| {
-                    //    element.into()
-                    //})
-                    todo!();
+                async fn send(&mut self) -> Option<Arc<Mutex<$to>>> {
+                    self.$last_name.send().await
                 }
                 async fn poll(&mut self) {
-                    //self.[<$first_field:snake>].poll();
-                    //let next_input = self.[<$first_field:snake>].send().await;
-                    //$(
-                    //    if let Some(next_input) = next_input {
-                    //        self.[<$($field)*>].receive(next_input);
-                    //    }
-                    //    self.[<$($field)*>].poll();
-                    //    let next_input = self.[<$($field)*>].send().await;
-                    //)*
-                    //if let Some(next_input) = next_input {
-                    //    self.[<$last_field:snake>].receive(next_input);
-                    //}
-                    //self.[<$last_field:snake>].poll();
-                    todo!();  // same
+                    self.$first_name.poll().await;
+                    let next_input = self.$first_name.send().await;
+                    $(
+                        if let Some(next_input) = next_input {
+                            self.[<$($field_without_first)*>].receive(next_input).await;
+                        }
+                        self.[<$($field_without_first)*>].poll().await;
+                        let next_input;
+                        if stringify!([<$($field_without_first)*>]) != stringify!($last_name) {
+                            next_input = self.[<$($field_without_first)*>].send().await;
+                        }
+                        else {
+                            next_input = None;
+                        }
+                    )*
                 }
             }
         }
     };
 }
 
-my_macro_expanded!(Asdf, (i32, String));
+my_macro_expanded!(Asdf, SomeInput => SomeInput, TestChainLink => StringToSomeInput);
 
 
 //macro_rules! example {
