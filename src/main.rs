@@ -241,65 +241,82 @@ my_macro!(Foobar, (a, b, c, d));
 
 
 macro_rules! my_macro_expanded {
-    ($name:ident, $other:ident, ($($field:ident),*)) => {
-        my_macro_first!($name, $other,       (x)              ()        ()                        $($field)*);
+    ($name:ident, ($($field:ident),*)) => {
+        my_macro_first!($name,        (x)              ()        ()                        $($field)*);
     };
 }
 
 macro_rules! my_macro_first {
-    (                    $name:ident, $other:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+    (                    $name:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $other, $next,      ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+            my_macro_expanded_helper!($name, $next,      ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
         }
     };
 }
 
 macro_rules! my_macro_expanded_helper {
     // In the recursive case: append another `x` into our prefix.
-    (                    $name:ident, $other:ident, $first:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
+    (                    $name:ident, $first:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $other, $first, $next,     ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next])    );
+            my_macro_expanded_helper!($name, $first, $next,     ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next])    );
         }
     };
-    (                    $name:ident, $other:ident, $first:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+    (                    $name:ident, $first:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $other, $first,      ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+            my_macro_expanded_helper!($name, $first,      ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
         }
     };
 
     // When there are no fields remaining.
-    ($name:ident, $other:ident, $first:ident, $last:ident, ($($prefix:tt)*) ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
+    ($name:ident, $first:ident, $last:ident, ($($prefix:tt)*) ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
         paste::paste! {
-            // Expands to:
-            //    pub struct Blah {
-            //        x_a: i32,
-            //        xx_b: i32,
-            //        xxx_c: i32,
-            //        xxxx_a: i32,
-            //    }
-            pub struct $name {
+            struct $name {
                 $(
                     [<$($field)*>]: $field_type,
                 )*
             }
 
-            $(
-                pub struct $field_type {}
-            )*
+            // fixed by https://stackoverflow.com/questions/33193846/using-macros-how-to-get-unique-names-for-struct-fields
 
-            pub struct $other {}
+            #[async_trait::async_trait]
+            impl ChainLink for $name {
+                type TInput = $first;
+                type TOutput = $last;
 
-            // Expands to:
-            //    impl Blah {
-            //        pub fn foo(&self) -> i32 {
-            //            0 + self.x_a + self.xx_b + self.xxx_c + self.xxxx_a
-            //        }
-            //    }
+                async fn receive(&mut self, input: Arc<Mutex<$first>>) -> () {
+                    // TODO fix to use provided first name
+                    //self.[<$first:snake>].push(input);
+                    todo!();
+                }
+                async fn send(&mut self) -> Option<Arc<Mutex<$last>>> {
+                    // TODO fix to use provided last name
+                    //self.[<$last_field:snake>].try_pop().map(|element| {
+                    //    element.into()
+                    //})
+                    todo!();
+                }
+                async fn poll(&mut self) {
+                    //self.[<$first_field:snake>].poll();
+                    //let next_input = self.[<$first_field:snake>].send().await;
+                    //$(
+                    //    if let Some(next_input) = next_input {
+                    //        self.[<$($field)*>].receive(next_input);
+                    //    }
+                    //    self.[<$($field)*>].poll();
+                    //    let next_input = self.[<$($field)*>].send().await;
+                    //)*
+                    //if let Some(next_input) = next_input {
+                    //    self.[<$last_field:snake>].receive(next_input);
+                    //}
+                    //self.[<$last_field:snake>].poll();
+                    todo!();  // same
+                }
+            }
         }
     };
 }
 
-my_macro_expanded!(Asdf, Fdsa, (Cat, Dog));
+my_macro_expanded!(Asdf, (i32, String));
 
 
 //macro_rules! example {
