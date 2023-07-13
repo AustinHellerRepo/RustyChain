@@ -249,31 +249,33 @@ macro_rules! my_macro_expanded {
 macro_rules! my_macro_first {
     (                    $name:ident, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>], ()  ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+            my_macro_expanded_helper!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*) $($rest)*      );
         }
     };
 }
 
 macro_rules! my_macro_expanded_helper {
     // In the recursive case: append another `x` into our prefix.
-    (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident, ($($past_without_first:tt)*) ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
+    (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $from, $to, $first, $first_name, $next, [<$($prefix)* _ $next:snake>],  ($($past_without_first)* [$($prefix)* _ [<$next:snake>]])   ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next])    );
+            my_macro_expanded_helper!($name, $from, $to, $first, $first_name, $next, [<$($prefix)* _ $next:snake>],   () ($($past)*) ($($past_type)*)    );
         }
     };
-    (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident, ($($past_without_first:tt)*) ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+    (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $from, $to, $first, $first_name,   ($($past_without_first)* [$($prefix)* _ [<$next:snake>]])   ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+            my_macro_expanded_helper!($name, $from, $to, $first, $first_name,    ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
         }
     };
 
     // When there are no fields remaining.
-    ($name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident, $last:ident, $last_name:ident, ($([$($field_without_first:tt)*])*) ($($prefix:tt)*) ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
+    ($name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident, $last:ident, $last_name:ident,  () ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
         paste::paste! {
             struct $name {
+                $first_name: $first,
                 $(
                     [<$($field)*>]: $field_type,
                 )*
+                $last_name: $last
             }
 
             // fixed by https://stackoverflow.com/questions/33193846/using-macros-how-to-get-unique-names-for-struct-fields
@@ -294,17 +296,21 @@ macro_rules! my_macro_expanded_helper {
                     let next_input = self.$first_name.send().await;
                     $(
                         if let Some(next_input) = next_input {
-                            self.[<$($field_without_first)*>].receive(next_input).await;
-                        }
-                        self.[<$($field_without_first)*>].poll().await;
-                        let next_input;
-                        if stringify!([<$($field_without_first)*>]) != stringify!($last_name) {
-                            next_input = self.[<$($field_without_first)*>].send().await;
+                            self.[<$($field)*>].receive(next_input).await;
                         }
                         else {
-                            next_input = None;
+                            return;
                         }
+                        self.[<$($field)*>].poll().await;
+                        let next_input = self.[<$($field)*>].send().await;
                     )*
+                    if let Some(next_input) = next_input {
+                        self.$last_name.receive(next_input).await;
+                    }
+                    else {
+                        return;
+                    }
+                    self.$last_name.poll().await;
                 }
             }
         }
