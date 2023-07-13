@@ -242,25 +242,33 @@ my_macro!(Foobar, (a, b, c, d));
 
 macro_rules! my_macro_expanded {
     ($name:ident, $other:ident, ($($field:ident),*)) => {
-        my_macro_expanded_helper!($name, $other,       (x)              ()        ()                        $($field)*);
+        my_macro_first!($name, $other,       (x)              ()        ()                        $($field)*);
+    };
+}
+
+macro_rules! my_macro_first {
+    (                    $name:ident, $other:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+        paste::paste! {
+            my_macro_expanded_helper!($name, $other, $next,      ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+        }
     };
 }
 
 macro_rules! my_macro_expanded_helper {
     // In the recursive case: append another `x` into our prefix.
-    (                    $name:ident, $other:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+    (                    $name:ident, $other:ident, $first:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $other,       ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+            my_macro_expanded_helper!($name, $other, $first, $next,     ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next])    );
         }
     };
-    (                    $name:ident, $other:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
+    (                    $name:ident, $other:ident, $first:ident, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
         paste::paste! {
-            my_macro_expanded_helper!($name, $other,       ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next])    );
+            my_macro_expanded_helper!($name, $other, $first,      ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
         }
     };
 
     // When there are no fields remaining.
-    ($name:ident, $other:ident, ($($prefix:tt)*) ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
+    ($name:ident, $other:ident, $first:ident, $last:ident, ($($prefix:tt)*) ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
         paste::paste! {
             // Expands to:
             //    pub struct Blah {
