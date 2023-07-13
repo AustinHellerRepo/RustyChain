@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, future::Future};
+use std::{sync::{Arc, Mutex}};
 
 use async_trait::async_trait;
 
@@ -10,31 +10,13 @@ trait ChainLink {
     async fn receive(&mut self, input: Arc<Mutex<Self::TInput>>);
     async fn send(&mut self) -> Option<Arc<Mutex<Self::TOutput>>>;
     async fn poll(&mut self);
-    //async fn chain(self, other: impl ChainLink) -> ChainLnk;
+    //async fn chain(self, other: impl ChainLink) -> ChainLink;
 }
 
 #[derive(Debug)]
 enum SomeInput {
     First,
     Second
-}
-
-struct Test {}
-
-#[async_trait]
-impl ChainLink for Test {
-    type TInput = SomeInput;
-    type TOutput = String;
-
-    async fn receive(&mut self, input: Arc<Mutex<Self::TInput>>) {
-        todo!();
-    }
-    async fn send(&mut self) -> Option<Arc<Mutex<Self::TOutput>>> {
-        todo!();
-    }
-    async fn poll(&mut self) {
-        todo!();
-    }
 }
 
 macro_rules! chain_link {
@@ -171,6 +153,10 @@ chain!(ChainTest, SomeInput => SomeInput, TestChainLink => StringToSomeInput);
 chain!(TripleTest, SomeInput => String, TestChainLink => StringToSomeInput => TestChainLink);
 
 
+// chaining two chains
+chain!(ChainToChain, SomeInput => String, ChainTest => TripleTest);
+chain!(ChainToChainToLink, SomeInput => SomeInput, ChainTest => TripleTest => StringToSomeInput);
+
 
 #[tokio::main]
 async fn main() {
@@ -216,4 +202,31 @@ async fn main() {
         }
     }
 
+    let mut chain_to_chain = ChainToChain::default();
+    let value = Arc::new(Mutex::new(SomeInput::First));
+    chain_to_chain.receive(value).await;
+    chain_to_chain.poll().await;
+    let response = chain_to_chain.send().await;
+    match response {
+        Some(response) => {
+            println!("{:?}", response.lock().unwrap());
+        },
+        None => {
+            println!("None")
+        }
+    }
+
+    let mut chain_to_chain_to_link = ChainToChainToLink::default();
+    let value = Arc::new(Mutex::new(SomeInput::Second));
+    chain_to_chain_to_link.receive(value).await;
+    chain_to_chain_to_link.poll().await;
+    let response = chain_to_chain_to_link.send().await;
+    match response {
+        Some(response) => {
+            println!("{:?}", response.lock().unwrap());
+        },
+        None => {
+            println!("None")
+        }
+    }
 }
