@@ -22,7 +22,7 @@ macro_rules! chain_link {
             }
 
             #[async_trait::async_trait]
-            impl crate::ChainLink for $type {
+            impl crate::chain::ChainLink for $type {
                 type TInput = $receive_type;
                 type TOutput = $output_type;
 
@@ -52,6 +52,7 @@ macro_rules! chain {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! chain_first {
     (                    $name:ident, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
         paste::paste! {
@@ -60,6 +61,7 @@ macro_rules! chain_first {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! chain_remaining {
     // In the recursive case: append another `x` into our prefix.
     (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
@@ -86,7 +88,7 @@ macro_rules! chain_remaining {
             }
 
             #[async_trait::async_trait]
-            impl crate::ChainLink for $name {
+            impl crate::chain::ChainLink for $name {
                 type TInput = $from;
                 type TOutput = $to;
 
