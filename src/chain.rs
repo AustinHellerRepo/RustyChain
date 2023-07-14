@@ -1,42 +1,35 @@
-use std::{sync::{Arc, Mutex}};
-
 use async_trait::async_trait;
 
 #[async_trait]
-trait ChainLink {
+pub trait ChainLink {
     type TInput;
     type TOutput;
 
-    async fn receive(&mut self, input: Arc<Mutex<Self::TInput>>);
-    async fn send(&mut self) -> Option<Arc<Mutex<Self::TOutput>>>;
+    async fn receive(&mut self, input: std::sync::Arc<std::sync::Mutex<Self::TInput>>);
+    async fn send(&mut self) -> Option<std::sync::Arc<std::sync::Mutex<Self::TOutput>>>;
     async fn poll(&mut self);
     //async fn chain(self, other: impl ChainLink) -> ChainLink;
 }
 
-#[derive(Debug)]
-enum SomeInput {
-    First,
-    Second
-}
-
+#[macro_export]
 macro_rules! chain_link {
     ($type:ty, $receive_name:ident: $receive_type:ty => $output_type:ty, $map_block:block) => {
         paste::paste! {
             #[derive(Default)]
             struct $type {
-                input_queue: deadqueue::unlimited::Queue<Arc<Mutex<$receive_type>>>,
-                output_queue: deadqueue::unlimited::Queue<Arc<Mutex<$output_type>>>
+                input_queue: deadqueue::unlimited::Queue<std::sync::Arc<std::sync::Mutex<$receive_type>>>,
+                output_queue: deadqueue::unlimited::Queue<std::sync::Arc<std::sync::Mutex<$output_type>>>
             }
 
             #[async_trait::async_trait]
-            impl ChainLink for $type {
+            impl crate::ChainLink for $type {
                 type TInput = $receive_type;
                 type TOutput = $output_type;
 
-                async fn receive(&mut self, input: Arc<Mutex<$receive_type>>) -> () {
+                async fn receive(&mut self, input: std::sync::Arc<std::sync::Mutex<$receive_type>>) -> () {
                     self.input_queue.push(input);
                 }
-                async fn send(&mut self) -> Option<Arc<Mutex<$output_type>>> {
+                async fn send(&mut self) -> Option<std::sync::Arc<std::sync::Mutex<$output_type>>> {
                     self.output_queue.try_pop().map(|element| {
                         element.into()
                     })
@@ -44,7 +37,7 @@ macro_rules! chain_link {
                 async fn poll(&mut self) {
                     if let Some($receive_name) = self.input_queue.try_pop() {
                         let $receive_name: &mut $receive_type = &mut $receive_name.lock().unwrap();
-                        self.output_queue.push(Arc::new(Mutex::new($map_block)));
+                        self.output_queue.push(std::sync::Arc::new(std::sync::Mutex::new($map_block)));
                     } 
                 }
             }
@@ -52,26 +45,7 @@ macro_rules! chain_link {
     };
 }
 
-chain_link!(TestChainLink, input:SomeInput => String, {
-    match input {
-        SomeInput::First => {
-            String::from("first")
-        },
-        SomeInput::Second => {
-            String::from("second")
-        }
-    }
-});
-
-chain_link!(StringToSomeInput, input:String => SomeInput, {
-    match input.as_str() {
-        "first" => SomeInput::First,
-        "second" => SomeInput::Second,
-        _ => panic!("Unexpected value")
-    }
-});
-
-
+#[macro_export]
 macro_rules! chain {
     ($name:ident, $from:ty => $to:ty, $($field:ident)=>*) => {
         chain_first!($name, $from, $to,       (x)              ()        ()                        $($field)*);
@@ -112,14 +86,14 @@ macro_rules! chain_remaining {
             }
 
             #[async_trait::async_trait]
-            impl ChainLink for $name {
+            impl crate::ChainLink for $name {
                 type TInput = $from;
                 type TOutput = $to;
 
-                async fn receive(&mut self, input: Arc<Mutex<$from>>) -> () {
+                async fn receive(&mut self, input: std::sync::Arc<std::sync::Mutex<$from>>) -> () {
                     self.$first_name.receive(input).await
                 }
-                async fn send(&mut self) -> Option<Arc<Mutex<$to>>> {
+                async fn send(&mut self) -> Option<std::sync::Arc<std::sync::Mutex<$to>>> {
                     self.$last_name.send().await
                 }
                 async fn poll(&mut self) {
@@ -146,87 +120,4 @@ macro_rules! chain_remaining {
             }
         }
     };
-}
-
-chain!(ChainTest, SomeInput => SomeInput, TestChainLink => StringToSomeInput);
-
-chain!(TripleTest, SomeInput => String, TestChainLink => StringToSomeInput => TestChainLink);
-
-
-// chaining two chains
-chain!(ChainToChain, SomeInput => String, ChainTest => TripleTest);
-chain!(ChainToChainToLink, SomeInput => SomeInput, ChainTest => TripleTest => StringToSomeInput);
-
-
-#[tokio::main]
-async fn main() {
-    let mut test = TestChainLink::default();
-    let value = Arc::new(Mutex::new(SomeInput::Second));
-    test.receive(value).await;
-    test.poll().await;
-    let response = test.send().await;
-    match response {
-        Some(response) => {
-            println!("{}", response.lock().unwrap());
-        },
-        None => {
-            println!("None")
-        }
-    }
-
-    let mut chain_test = ChainTest::default();
-    let value = Arc::new(Mutex::new(SomeInput::Second));
-    chain_test.receive(value).await;
-    chain_test.poll().await;
-    let response = chain_test.send().await;
-    match response {
-        Some(response) => {
-            println!("{:?}", response.lock().unwrap());
-        },
-        None => {
-            println!("None")
-        }
-    }
-
-    let mut triple_test = TripleTest::default();
-    let value = Arc::new(Mutex::new(SomeInput::First));
-    triple_test.receive(value).await;
-    triple_test.poll().await;
-    let response = triple_test.send().await;
-    match response {
-        Some(response) => {
-            println!("{:?}", response.lock().unwrap());
-        },
-        None => {
-            println!("None")
-        }
-    }
-
-    let mut chain_to_chain = ChainToChain::default();
-    let value = Arc::new(Mutex::new(SomeInput::First));
-    chain_to_chain.receive(value).await;
-    chain_to_chain.poll().await;
-    let response = chain_to_chain.send().await;
-    match response {
-        Some(response) => {
-            println!("{:?}", response.lock().unwrap());
-        },
-        None => {
-            println!("None")
-        }
-    }
-
-    let mut chain_to_chain_to_link = ChainToChainToLink::default();
-    let value = Arc::new(Mutex::new(SomeInput::Second));
-    chain_to_chain_to_link.receive(value).await;
-    chain_to_chain_to_link.poll().await;
-    let response = chain_to_chain_to_link.send().await;
-    match response {
-        Some(response) => {
-            println!("{:?}", response.lock().unwrap());
-        },
-        None => {
-            println!("None")
-        }
-    }
 }
