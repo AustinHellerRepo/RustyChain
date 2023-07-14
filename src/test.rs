@@ -4,7 +4,7 @@ mod test {
     use crate::chain::ChainLink;
 
     #[derive(Debug, PartialEq)]
-    enum SomeInput {
+    pub enum SomeInput {
         First,
         Second
     }

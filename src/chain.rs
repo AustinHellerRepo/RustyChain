@@ -16,7 +16,7 @@ macro_rules! chain_link {
     ($type:ty, $receive_name:ident: $receive_type:ty => $output_type:ty, $map_block:block) => {
         paste::paste! {
             #[derive(Default)]
-            struct $type {
+            pub struct $type {
                 input_queue: deadqueue::unlimited::Queue<std::sync::Arc<std::sync::Mutex<$receive_type>>>,
                 output_queue: deadqueue::unlimited::Queue<std::sync::Arc<std::sync::Mutex<$output_type>>>
             }
