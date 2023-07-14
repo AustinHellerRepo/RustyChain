@@ -22,7 +22,7 @@ macro_rules! chain_link {
             }
 
             #[async_trait::async_trait]
-            impl crate::chain::ChainLink for $type {
+            impl $crate::chain::ChainLink for $type {
                 type TInput = $receive_type;
                 type TOutput = $output_type;
 
@@ -88,7 +88,7 @@ macro_rules! chain_remaining {
             }
 
             #[async_trait::async_trait]
-            impl crate::chain::ChainLink for $name {
+            impl $crate::chain::ChainLink for $name {
                 type TInput = $from;
                 type TOutput = $to;
 

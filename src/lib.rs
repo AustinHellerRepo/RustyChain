@@ -1,3 +1,3 @@
 #[macro_use]
-mod chain;
+pub mod chain;
 mod test;
