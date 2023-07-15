@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod test {
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc};
+    use tokio::sync::Mutex;
     use crate::chain::ChainLink;
 
     #[derive(Debug, PartialEq)]
@@ -49,7 +50,7 @@ mod test {
         let response = test.send().await;
         match response {
             Some(response) => {
-                assert_eq!("second", response.lock().unwrap().as_str());
+                assert_eq!("second", response.lock().await.as_str());
             },
             None => {
                 panic!("Unexpected None response.");
@@ -65,7 +66,7 @@ mod test {
         let response = test.send().await;
         match response {
             Some(response) => {
-                assert_eq!("test", Arc::try_unwrap(response).unwrap().into_inner().unwrap().as_str());
+                assert_eq!("test", Arc::try_unwrap(response).unwrap().into_inner().as_str());
             },
             None => {
                 panic!("Unexpected None response.");
@@ -82,7 +83,7 @@ mod test {
         let response = chain_test.send().await;
         match response {
             Some(response) => {
-                assert_eq!(SomeInput::Second, Arc::try_unwrap(response).unwrap().into_inner().unwrap());
+                assert_eq!(SomeInput::Second, Arc::try_unwrap(response).unwrap().into_inner());
             },
             None => {
                 panic!("Unexpected None response.");
@@ -99,7 +100,7 @@ mod test {
         let response = triple_test.send().await;
         match response {
             Some(response) => {
-                assert_eq!("first", response.lock().unwrap().as_str());
+                assert_eq!("first", response.lock().await.as_str());
             },
             None => {
                 panic!("Unexpected None response.");
@@ -116,7 +117,7 @@ mod test {
         let response = chain_to_chain.send().await;
         match response {
             Some(response) => {
-                assert_eq!("first", response.lock().unwrap().as_str());
+                assert_eq!("first", response.lock().await.as_str());
             },
             None => {
                 panic!("Unexpected None response.");
@@ -133,10 +134,60 @@ mod test {
         let response = chain_to_chain_to_link.send().await;
         match response {
             Some(response) => {
-                assert_eq!(SomeInput::Second, Arc::try_unwrap(response).unwrap().into_inner().unwrap());
+                assert_eq!(SomeInput::Second, Arc::try_unwrap(response).unwrap().into_inner());
             },
             None => {
                 panic!("Unexpected None response.");
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn split_to_two_chain_links() {
+        chain_link!(StringToInt, input: String => i32, {
+            if input.received.as_str() == "test" {
+                1
+            }
+            else {
+                2
+            }
+        });
+        chain_link!(StringPrint, input: String => i32, {
+            println!("{}", input.received);
+            0
+        });
+        split_merge!(Test, String => i32, (StringToInt, StringPrint));
+
+        let mut test = Test::new(StringToIntInitializer { }, StringPrintInitializer { });
+        test.receive(Arc::new(Mutex::new(String::from("test")))).await;
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                assert_eq!(1, Arc::try_unwrap(response).unwrap().into_inner());
+            },
+            None => {
+                panic!("Unexpected None response.");
+            }
+        }
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                assert_eq!(0, Arc::try_unwrap(response).unwrap().into_inner());
+            },
+            None => {
+                panic!("Unexpected None response.");
+            }
+        }
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                panic!("Unexpected Some response with value {}.", response.lock().await);
+            },
+            None => {
+                // expected path
             }
         }
     }

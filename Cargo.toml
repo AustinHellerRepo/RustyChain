@@ -1,6 +1,6 @@
 [package]
 name = "rusty_chain"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Austin Heller"]
 description = "This library abstracts over functional processing units called `chain links`. Each link in the chain is meant to be independent, immutable, idempotent, and highly testable."
@@ -16,6 +16,7 @@ categories = ["concurrency", "data-structures"]
 paste = "1.0.13"
 deadqueue = { version = "0.2.4", features = ["unlimited"] }
 async-trait = "0.1.71"
+futures = "0.3.28"
+tokio = { version = "1.29.1", features = ["full"] }
 
 [dev-dependencies]
-tokio = { version = "1.29.1", features = ["full"] }
