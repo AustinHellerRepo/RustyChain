@@ -1,4 +1,5 @@
-use std::sync::{Mutex, Arc};
+use std::{sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 
 mod mapper_example {
 
@@ -43,6 +44,7 @@ mod mapper_example {
         name: String
     }
 
+    #[derive(Debug)]
     pub struct ParentModel {
         pub parent_id: i32,
         pub name: String,
@@ -91,26 +93,54 @@ async fn main() {
     use mapper_example::*;
     use rusty_chain::chain::*;
 
-    let mut mapper = GetParentById::new(GetParentByIdInitializer { connection_string: String::from("get from settings") });
+    let mapper = Arc::new(Mutex::new(GetParentById::new(GetParentByIdInitializer { connection_string: String::from("get from settings") })));
     
     // one thread is queueing up parent models to be received on the other end
-    mapper.receive(Arc::new(Mutex::new(GetParentByIdInput::new(1)))).await;
-    
-    // background thread is polling mapper and pulling out parent models on an interval
-    mapper.poll().await;
-    let model = mapper.send().await;
-    
-    match model {
-        Some(model) => {
-            let locked_model = model.lock().unwrap();
-            assert_eq!(1, locked_model.parent_id);
-            assert_eq!("Some name", locked_model.name.as_str());
-            assert_eq!(2, locked_model.children_image_bytes.len());
-        },
-        None => {
-            panic!("Unexpected None result.");
+    let receive_mapper = mapper.clone();
+    let receive_task = tokio::task::spawn(async {
+        let mut mapper = receive_mapper;
+        for index in 0..10 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            println!("receiving {}...", index);
+            mapper.lock().await.receive(Arc::new(Mutex::new(GetParentByIdInput::new(index)))).await;
+            println!("received {}.", index);
         }
-    }
+    });
+
+    // another thread polls faster than it may receive data
+    // this allows chainlink data migration to be adjusted dynamically at runtime
+    let join_mapper = mapper.clone();
+    let poll_task = tokio::task::spawn(async {
+        let mapper = join_mapper;
+        for _ in 0..20 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            println!("polling...");
+            mapper.lock().await.poll().await;
+            println!("polled.");
+        }
+    });
+
+    // this thread is pulling out parent models on an interval
+    let send_mapper = mapper.clone();
+    let send_task = tokio::task::spawn(async {
+        let mapper = send_mapper;
+        for _ in 0..10 {
+            tokio::time::sleep(Duration::from_millis(1200)).await;
+            println!("sending...");
+            let model = mapper.lock().await.send().await;
+            match model {
+                Some(model) => {
+                    let locked_model = model.lock().await;
+                    println!("sent {:?}", locked_model);
+                },
+                None => {
+                    panic!("Unexpected None result.");
+                }
+            }
+        }
+    });
+
+    tokio::join!(receive_task, poll_task, send_task);
 
     println!("Successful!");
 }
