@@ -38,7 +38,7 @@ macro_rules! chain_link {
             }
 
             #[allow(dead_code)]
-            pub struct [<$type Input>]<'a> {
+            pub struct [<_ $type Input>]<'a> {
                 received: &'a mut $receive_type,
                 initializer: &'a mut [<$type Initializer>]
             }
@@ -60,7 +60,7 @@ macro_rules! chain_link {
                     if let Some($receive_name) = self.input_queue.try_pop() {
                         let received: &mut $receive_type = &mut $receive_name.lock().unwrap();
                         let initializer: &mut [<$type Initializer>] = &mut self.initializer.lock().unwrap();
-                        let $receive_name = [<$type Input>] {
+                        let $receive_name = [<_ $type Input>] {
                             received,
                             initializer
                         };
