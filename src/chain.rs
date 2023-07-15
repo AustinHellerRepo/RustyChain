@@ -37,6 +37,12 @@ macro_rules! chain_link {
                 }
             }
 
+            #[allow(dead_code)]
+            pub struct [<$type Input>]<'a> {
+                received: &'a mut $receive_type,
+                initializer: &'a mut [<$type Initializer>]
+            }
+
             #[async_trait::async_trait]
             impl $crate::chain::ChainLink for $type {
                 type TInput = $receive_type;
@@ -52,7 +58,12 @@ macro_rules! chain_link {
                 }
                 async fn poll(&mut self) {
                     if let Some($receive_name) = self.input_queue.try_pop() {
-                        let $receive_name: &mut $receive_type = &mut $receive_name.lock().unwrap();
+                        let received: &mut $receive_type = &mut $receive_name.lock().unwrap();
+                        let initializer: &mut [<$type Initializer>] = &mut self.initializer.lock().unwrap();
+                        let $receive_name = [<$type Input>] {
+                            received,
+                            initializer
+                        };
                         self.output_queue.push(std::sync::Arc::new(std::sync::Mutex::new($map_block)));
                     } 
                 }

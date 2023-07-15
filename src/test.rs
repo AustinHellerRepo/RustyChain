@@ -10,7 +10,7 @@ mod test {
     }
 
     chain_link!(TestChainLink, input:SomeInput => String, {
-        match input {
+        match input.received {
             SomeInput::First => {
                 String::from("first")
             },
@@ -21,17 +21,20 @@ mod test {
     });
 
     chain_link!(StringToSomeInput, input:String => SomeInput, {
-        match input.as_str() {
+        match input.received.as_str() {
             "first" => SomeInput::First,
             "second" => SomeInput::Second,
             _ => panic!("Unexpected value")
         }
     });
 
+    chain_link!(HardCoded => (text: String), input:() => String, {
+        input.initializer.text.clone()
+    });
+
     chain!(ChainTest, SomeInput => SomeInput, TestChainLink => StringToSomeInput);
 
     chain!(TripleTest, SomeInput => String, TestChainLink => StringToSomeInput => TestChainLink);
-
 
     // chaining two chains
     chain!(ChainToChain, SomeInput => String, ChainTest => TripleTest);
@@ -47,6 +50,22 @@ mod test {
         match response {
             Some(response) => {
                 assert_eq!("second", response.lock().unwrap().as_str());
+            },
+            None => {
+                panic!("Unexpected None response.");
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn chain_link_using_initializer() {
+        let mut test = HardCoded::new(HardCodedInitializer { text: String::from("test") });
+        test.receive(Arc::new(Mutex::new(()))).await;
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                assert_eq!("test", Arc::try_unwrap(response).unwrap().into_inner().unwrap().as_str());
             },
             None => {
                 panic!("Unexpected None response.");

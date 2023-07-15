@@ -42,9 +42,9 @@ mod mapper_example {
 
     chain_link!(GetParentById, parent_id: i32 => ParentModel, {
         let database_connection = get_database_connection();
-        let child_records = database_connection.get_child_records_by_parent_id(*parent_id);
+        let child_records = database_connection.get_child_records_by_parent_id(*parent_id.received);
         ParentModel {
-            parent_id: *parent_id,
+            parent_id: *parent_id.received,
             children_image_bytes: child_records
                 .into_iter()
                 .map(|cr| {
