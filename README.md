@@ -1,16 +1,17 @@
 # Rusty Chain
-This library abstracts over functional processing units called `chain links`. Each `link` in the `chain` is meant to be independent, immutable, idempotent, and highly testable.
+This library abstracts over functional processing units called `ChainLink`s and `Chain`s. Each link in the chain is meant to be independent, immutable, idempotent, and highly testable.
 
 ## Features
 
 - A `ChainLink` is an independent processing unit that receives an input and sends an output.
   - By using the `chain_link!` macro you can quickly construct the internals of the mapping from input to output.
-- A `Chain` is a concatenation of `ChainLink`s and is a natural extension of this methodology for processing.
+- A `Chain` is a concatenation of `ChainLink`s (and other `Chain`s) and is a natural extension of this methodology for processing.
   - By using the `chain!` macro you can concatenate both `ChainLink`s and `Chain`s naturally.
 
 ## Usage
 
 You will want to determine what the smallest unit of processing your project consists of so that you can begin to create `ChainLink`s. Defend the quality of your `ChainLink`s by creating rigorous unit tests. After you have created a few `ChainLink`s bring it all together with a `Chain`.
+
 Each type of processing unit (`ChainLink` and `Chain`) accept in an optional initializer, allowing for dependency injection. Now, it is possible to share dependencies between `ChainLink`s of a `Chain`, but that is highly discouraged without unit tests around the `Chain`.
 
 ## Examples
