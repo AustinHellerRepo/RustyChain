@@ -13,12 +13,28 @@ pub trait ChainLink {
 
 #[macro_export]
 macro_rules! chain_link {
-    ($type:ty, $receive_name:ident: $receive_type:ty => $output_type:ty, $map_block:block) => {
+    ($type:ty => ($($property_name:ident: $property_type:ty),*), $receive_name:ident: $receive_type:ty => $output_type:ty, $map_block:block) => {
         paste::paste! {
-            #[derive(Default)]
             pub struct $type {
+                initializer: std::sync::Arc<std::sync::Mutex<[<$type Initializer>]>>,
                 input_queue: deadqueue::unlimited::Queue<std::sync::Arc<std::sync::Mutex<$receive_type>>>,
                 output_queue: deadqueue::unlimited::Queue<std::sync::Arc<std::sync::Mutex<$output_type>>>
+            }
+
+            pub struct [<$type Initializer>] {
+                $(
+                    pub $property_name: $property_type,
+                )*
+            }
+
+            impl $type {
+                pub fn new(initializer: [<$type Initializer>]) -> Self {
+                    $type {
+                        initializer: std::sync::Arc::new(std::sync::Mutex::new(initializer)),
+                        input_queue: deadqueue::unlimited::Queue::<std::sync::Arc<std::sync::Mutex<$receive_type>>>::default(),
+                        output_queue: deadqueue::unlimited::Queue::<std::sync::Arc<std::sync::Mutex<$output_type>>>::default()
+                    }
+                }
             }
 
             #[async_trait::async_trait]
@@ -43,20 +59,28 @@ macro_rules! chain_link {
             }
         }
     };
+    ($type:ty, $receive_name:ident: $receive_type:ty => $output_type:ty, $map_block:block) => {
+        chain_link!($type => (), $receive_name: $receive_type => $output_type, $map_block);
+    };
 }
 
 #[macro_export]
 macro_rules! chain {
-    ($name:ident, $from:ty => $to:ty, $($field:ident)=>*) => {
-        chain_first!($name, $from, $to,       (x)              ()        ()                        $($field)*);
+    ($name:ident, $from:ty => $to:ty, $($field:ty)=>*) => {
+        chain_first!($name, $from, $to,       (x)              ()        ()                        $($field)=>*);
     };
 }
 
 #[allow(unused_macros)]
 macro_rules! chain_first {
-    (                    $name:ident, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+    (                    $name:ident, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty  ) => {
         paste::paste! {
-            chain_remaining!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*) $($rest)*      );
+            chain_remaining!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*)      );
+        }
+    };
+    (                    $name:ident, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty =>   $($rest:ty)=>*) => {
+        paste::paste! {
+            chain_remaining!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*) $($rest)=>*      );
         }
     };
 }
@@ -64,27 +88,46 @@ macro_rules! chain_first {
 #[allow(unused_macros)]
 macro_rules! chain_remaining {
     // In the recursive case: append another `x` into our prefix.
-    (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
+    (                    $name:ident, $from:ty, $to:ty, $first:ty, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
         paste::paste! {
             chain_remaining!($name, $from, $to, $first, $first_name, $next, [<$($prefix)* _ $next:snake>],   () ($($past)*) ($($past_type)*)    );
         }
     };
-    (                    $name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident      $($rest:ident)*) => {
+    (                    $name:ident, $from:ty, $to:ty, $first:ty, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty =>    $($rest:ty)=>*) => {
         paste::paste! {
-            chain_remaining!($name, $from, $to, $first, $first_name,    ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)*      );
+            chain_remaining!($name, $from, $to, $first, $first_name,    ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)=>*      );
         }
     };
 
     // When there are no fields remaining.
-    ($name:ident, $from:ty, $to:ty, $first:ident, $first_name:ident, $last:ident, $last_name:ident,  () ($([$($field:tt)*])*) ($([$field_type:ident])*)) => {
+    ($name:ident, $from:ty, $to:ty, $first:ty, $first_name:ident, $last:ty, $last_name:ident,  () ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
-            #[derive(Default)]
             struct $name {
                 $first_name: $first,
                 $(
                     [<$($field)*>]: $field_type,
                 )*
                 $last_name: $last
+            }
+
+            struct [<$name Initializer>] {
+                $first_name: [<$first Initializer>],
+                $(
+                    [<$($field)*>]: [<$field_type Initializer>],
+                )*
+                $last_name: [<$last Initializer>]
+            }
+
+            impl $name {
+                fn new(initializer: [<$name Initializer>]) -> Self {
+                    $name {
+                        $first_name: $first::new(initializer.$first_name),
+                        $(
+                            [<$($field)*>]: $field_type::new(initializer.[<$($field)*>]),
+                        )*
+                        $last_name: $last::new(initializer.$last_name)
+                    }
+                }
             }
 
             #[async_trait::async_trait]

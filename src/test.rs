@@ -39,7 +39,7 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_link_enum_to_string() {
-        let mut test = TestChainLink::default();
+        let mut test = TestChainLink::new(TestChainLinkInitializer { });
         let value = Arc::new(Mutex::new(SomeInput::Second));
         test.receive(value).await;
         test.poll().await;
@@ -56,7 +56,7 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_enum_to_enum() {
-        let mut chain_test = ChainTest::default();
+        let mut chain_test = ChainTest::new(ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } });
         let value = Arc::new(Mutex::new(SomeInput::Second));
         chain_test.receive(value).await;
         chain_test.poll().await;
@@ -73,7 +73,7 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_enum_to_string_to_enum() {
-        let mut triple_test = TripleTest::default();
+        let mut triple_test = TripleTest::new(TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } });
         let value = Arc::new(Mutex::new(SomeInput::First));
         triple_test.receive(value).await;
         triple_test.poll().await;
@@ -90,7 +90,7 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_to_chain() {
-        let mut chain_to_chain = ChainToChain::default();
+        let mut chain_to_chain = ChainToChain::new(ChainToChainInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } } });
         let value = Arc::new(Mutex::new(SomeInput::First));
         chain_to_chain.receive(value).await;
         chain_to_chain.poll().await;
@@ -107,7 +107,7 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_to_chain_to_chain_link() {
-        let mut chain_to_chain_to_link = ChainToChainToLink::default();
+        let mut chain_to_chain_to_link = ChainToChainToLink::new(ChainToChainToLinkInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } }, xxx_string_to_some_input: StringToSomeInputInitializer { } });
         let value = Arc::new(Mutex::new(SomeInput::Second));
         chain_to_chain_to_link.receive(value).await;
         chain_to_chain_to_link.poll().await;

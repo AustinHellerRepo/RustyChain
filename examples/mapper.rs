@@ -60,6 +60,6 @@ mod mapper_example {
 async fn main() {
     use mapper_example::*;
     use rusty_chain::chain::*;
-    let mut mapper = GetParentById::default();
+    let mut mapper = GetParentById::new(GetParentByIdInitializer { });
     mapper.receive(Arc::new(Mutex::new(1))).await;
 }
