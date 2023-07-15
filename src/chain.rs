@@ -220,6 +220,7 @@ macro_rules! split_merge_helper {
                     futures::join!($(self.[<$($field)*>].receive(input.clone())),*);
                 }
                 async fn send(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
+                    // TODO try other fields if None is returned
                     let next_send_field_index: usize;
                     {
                         let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
