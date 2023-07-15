@@ -140,4 +140,23 @@ mod test {
             }
         }
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn split_to_two_chain_links() {
+        chain_link!(StringToInt, input: String => i32, {
+            if input.received.as_str() == "test" {
+                1
+            }
+            else {
+                2
+            }
+        });
+        chain_link!(StringPrint, input: String => (), {
+            println!("{}", input.received);
+        });
+        split!(Test, String, (StringToInt => i32, StringPrint => ()));
+
+        let test = Test::new(StringToIntInitializer { }, StringPrintInitializer { });
+        
+    }
 }

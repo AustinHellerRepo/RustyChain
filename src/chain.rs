@@ -177,3 +177,65 @@ macro_rules! chain_remaining {
         }
     };
 }
+
+macro_rules! split_merge {
+    ($name:ty, $from:ty => $to:ty, ($($destination:ty => $destination_output:ty),*)) => {
+        split_merge_helper!($name, $from, $to, (x) () (), $($destination => $destination_output),*);
+    };
+}
+
+macro_rules! split_merge_helper {
+    ($name:ty, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty => $next_output:ty) => {
+        paste::paste! {
+            split_merge_helper!($name, $from, $to, ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next, $next_output]));
+        }
+    };
+    ($name:ty, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty => $next_output:ty, $($destination:ty => $destination_output:ty),*) => {
+        paste::paste! {
+            split_merge_helper!($name, $from, $to, ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next, $next_output]), $($destination => $destination_output),*);
+        }
+    };
+    ($name:ident, $from:ty, $to:ty, ($([$($field:tt)*])*) ($([$field_type:ty, $field_output:ty])*)) => {
+        paste::paste! {
+            pub struct $name {
+                $(
+                    [<$($field)*>]: $field_type,
+                )*
+            }
+
+            impl $name {
+                pub fn new($([<$($field)* _initializer>]: [<$field_type Initializer>]),*) -> Self {
+                    $name {
+                        $(
+                            [<$($field)*>]: $field_type::new([<$($field)* _initializer>]),
+                        )*
+                    }
+                }
+            }
+
+            pub struct [<$name Output>] {
+                $(
+                    [<$($field)*>]: $field_output,
+                )*
+            }
+
+            #[async_trait::async_trait]
+            impl $crate::chain::ChainLink for $name {
+                type TInput = $from;
+                type TOutput = $to;
+
+                async fn receive(&mut self, input: std::sync::Arc<std::sync::Mutex<$from>>) -> () {
+                    futures::join!($(self.[<$($field)*>].receive(input.clone())),*);
+                }
+                async fn send(&mut self) -> Option<std::sync::Arc<std::sync::Mutex<($($field_output),*)>>> {
+                    let output = futures::join!($(self.[<$($field)*>].send()),*)
+                }
+                async fn poll(&mut self) {
+                    $(
+                        self.[<$($field)*>].poll().await;
+                    )*
+                }
+            }
+        }
+    }
+}
