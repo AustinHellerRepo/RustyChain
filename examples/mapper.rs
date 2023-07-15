@@ -98,7 +98,7 @@ async fn main() {
     // one thread is queueing up parent models to be received on the other end
     let receive_mapper = mapper.clone();
     let receive_task = tokio::task::spawn(async {
-        let mut mapper = receive_mapper;
+        let mapper = receive_mapper;
         for index in 0..10 {
             tokio::time::sleep(Duration::from_secs(1)).await;
             println!("receiving {}...", index);
@@ -140,7 +140,10 @@ async fn main() {
         }
     });
 
-    tokio::join!(receive_task, poll_task, send_task);
+    let result = tokio::join!(receive_task, poll_task, send_task);
+    result.0.expect("The receive task should join properly.");
+    result.1.expect("The receive task should join properly.");
+    result.2.expect("The receive task should join properly.");
 
     println!("Successful!");
 }
