@@ -178,29 +178,32 @@ macro_rules! chain_remaining {
     };
 }
 
+#[macro_export]
 macro_rules! split_merge {
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty => $destination_output:ty),*)) => {
-        split_merge_helper!($name, $from, $to, (x) () (), $($destination => $destination_output),*);
+    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*)) => {
+        split_merge_helper!($name, $from, $to, (0) () (x) () (), $($destination),*);
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! split_merge_helper {
-    ($name:ty, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty => $next_output:ty) => {
+    ($name:ty, $from:ty, $to:ty, ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
         paste::paste! {
-            split_merge_helper!($name, $from, $to, ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next, $next_output]));
+            split_merge_helper!($name, $from, $to, ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
         }
     };
-    ($name:ty, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty => $next_output:ty, $($destination:ty => $destination_output:ty),*) => {
+    ($name:ty, $from:ty, $to:ty, ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
         paste::paste! {
-            split_merge_helper!($name, $from, $to, ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next, $next_output]), $($destination => $destination_output),*);
+            split_merge_helper!($name, $from, $to, ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
         }
     };
-    ($name:ident, $from:ty, $to:ty, ($([$($field:tt)*])*) ($([$field_type:ty, $field_output:ty])*)) => {
+    ($name:ident, $from:ty, $to:ty, ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
             pub struct $name {
                 $(
                     [<$($field)*>]: $field_type,
                 )*
+                next_send_field_index: std::sync::Mutex<usize>
             }
 
             impl $name {
@@ -209,14 +212,9 @@ macro_rules! split_merge_helper {
                         $(
                             [<$($field)*>]: $field_type::new([<$($field)* _initializer>]),
                         )*
+                        next_send_field_index: std::sync::Mutex::new(0)
                     }
                 }
-            }
-
-            pub struct [<$name Output>] {
-                $(
-                    [<$($field)*>]: $field_output,
-                )*
             }
 
             #[async_trait::async_trait]
@@ -227,8 +225,30 @@ macro_rules! split_merge_helper {
                 async fn receive(&mut self, input: std::sync::Arc<std::sync::Mutex<$from>>) -> () {
                     futures::join!($(self.[<$($field)*>].receive(input.clone())),*);
                 }
-                async fn send(&mut self) -> Option<std::sync::Arc<std::sync::Mutex<($($field_output),*)>>> {
-                    let output = futures::join!($(self.[<$($field)*>].send()),*)
+                async fn send(&mut self) -> Option<std::sync::Arc<std::sync::Mutex<$to>>> {
+                    let next_send_field_index: usize;
+                    {
+                        let mut next_send_field_index_lock = self.next_send_field_index.lock().unwrap();
+                        next_send_field_index = *next_send_field_index_lock;
+                        if next_send_field_index + 1 == ($count) {
+                            *next_send_field_index_lock = 0;
+                        }
+                        else {
+                            *next_send_field_index_lock = next_send_field_index + 1;
+                        }
+                    }
+                    
+                    if false {
+                        panic!("False should not be true");
+                    }
+                    $(
+                        else if next_send_field_index == ($index) {
+                            return self.[<$($field)*>].send().await;
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_send_field_index");
+                    }
                 }
                 async fn poll(&mut self) {
                     $(
