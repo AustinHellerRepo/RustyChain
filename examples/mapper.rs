@@ -65,14 +65,15 @@ mod mapper_example {
 
     chain_link!(GetParentById => (connection_string: String), input: GetParentByIdInput => ParentModel, {
         // the connection string was part of the initializer, so we can create our database connection on demand
-        let database_connection = DatabaseConnection::new(input.initializer.connection_string.clone());
-        let parent_record = database_connection.get_parent_by_parent_id(input.received.parent_id);
-        let child_records = database_connection.get_child_records_by_parent_id(input.received.parent_id);
+        let database_connection = DatabaseConnection::new(input.initializer.lock().await.connection_string.clone());
+        let parent_id = input.received.unwrap().parent_id;
+        let parent_record = database_connection.get_parent_by_parent_id(parent_id);
+        let child_records = database_connection.get_child_records_by_parent_id(parent_id);
 
         // just checking that the data matches expectations
-        assert_eq!(input.received.parent_id, parent_record.parent_id);
+        assert_eq!(parent_id, parent_record.parent_id);
 
-        ParentModel {
+        Some(ParentModel {
             parent_id: parent_record.parent_id,
             name: parent_record.name,
             children_image_bytes: child_records
@@ -83,7 +84,7 @@ mod mapper_example {
                     cr.image_bytes
                 })
                 .collect()
-        }
+        })
     });
 }
 
@@ -102,7 +103,7 @@ async fn main() {
         for index in 0..10 {
             tokio::time::sleep(Duration::from_secs(1)).await;
             println!("receiving {}...", index);
-            mapper.lock().await.receive(Arc::new(Mutex::new(GetParentByIdInput::new(index)))).await;
+            mapper.lock().await.push(Arc::new(Mutex::new(GetParentByIdInput::new(index)))).await;
             println!("received {}.", index);
         }
     });
@@ -116,7 +117,7 @@ async fn main() {
         for _ in 0..20 {
             tokio::time::sleep(Duration::from_millis(500)).await;
             println!("polling...");
-            mapper.lock().await.poll().await;
+            mapper.lock().await.process().await;
             println!("polled.");
         }
     });
@@ -128,7 +129,7 @@ async fn main() {
         for _ in 0..10 {
             tokio::time::sleep(Duration::from_millis(1200)).await;
             println!("sending...");
-            let model = mapper.lock().await.send().await;
+            let model = mapper.lock().await.try_pop().await;
             match model {
                 Some(model) => {
                     let locked_model = model.lock().await;

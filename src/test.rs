@@ -12,25 +12,40 @@ mod test {
 
     chain_link!(TestChainLink, input:SomeInput => String, {
         match input.received {
-            SomeInput::First => {
-                String::from("first")
+            Some(received) => {
+                Some(match *received {
+                    SomeInput::First => {
+                        String::from("first")
+                    },
+                    SomeInput::Second => {
+                        String::from("second")
+                    }
+                })
             },
-            SomeInput::Second => {
-                String::from("second")
-            }
+            None => None
         }
     });
 
     chain_link!(StringToSomeInput, input:String => SomeInput, {
-        match input.received.as_str() {
-            "first" => SomeInput::First,
-            "second" => SomeInput::Second,
-            _ => panic!("Unexpected value")
+        match input.received {
+            Some(received) => {
+                Some(match received.as_str() {
+                    "first" => SomeInput::First,
+                    "second" => SomeInput::Second,
+                    _ => panic!("Unexpected value")
+                })
+            },
+            None => None
         }
     });
 
     chain_link!(HardCoded => (text: String), input:() => String, {
-        input.initializer.text.clone()
+        match input.received {
+            Some(_received) => {
+                Some(input.initializer.lock().await.text.clone())
+            },
+            None => None
+        }
     });
 
     chain!(ChainTest, SomeInput => SomeInput, TestChainLink => StringToSomeInput);
@@ -41,13 +56,43 @@ mod test {
     chain!(ChainToChain, SomeInput => String, ChainTest => TripleTest);
     chain!(ChainToChainToLink, SomeInput => SomeInput, ChainTest => TripleTest => StringToSomeInput);
 
+    chain_link!(StringToInt, input: String => i32, {
+        match input.received {
+            Some(received) => {
+                Some(if received.as_str() == "test" {
+                    1
+                }
+                else {
+                    2
+                })
+            },
+            None => {
+                None
+            }
+        }
+    });
+    chain_link!(StringPrint, input: String => i32, {
+        match input.received {
+            Some(received) => {
+                println!("{}", received);
+                Some(0)
+            },
+            None => {
+                None
+            }
+        }
+    });
+    
+    split_merge!(SplitMergeTwoChainLinks, String => i32, (StringToInt, StringPrint));
+    split_merge!(SplitMergeMultiple, String => i32, (StringToInt, SplitMergeTwoChainLinks, StringPrint));
+
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_link_enum_to_string() {
         let mut test = TestChainLink::new(TestChainLinkInitializer { });
         let value = Arc::new(Mutex::new(SomeInput::Second));
-        test.receive(value).await;
-        test.poll().await;
-        let response = test.send().await;
+        test.push(value).await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!("second", response.lock().await.as_str());
@@ -61,9 +106,9 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_link_using_initializer() {
         let mut test = HardCoded::new(HardCodedInitializer { text: String::from("test") });
-        test.receive(Arc::new(Mutex::new(()))).await;
-        test.poll().await;
-        let response = test.send().await;
+        test.push(Arc::new(Mutex::new(()))).await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!("test", Arc::try_unwrap(response).unwrap().into_inner().as_str());
@@ -78,9 +123,9 @@ mod test {
     async fn chain_enum_to_enum() {
         let mut chain_test = ChainTest::new(ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } });
         let value = Arc::new(Mutex::new(SomeInput::Second));
-        chain_test.receive(value).await;
-        chain_test.poll().await;
-        let response = chain_test.send().await;
+        chain_test.push(value).await;
+        chain_test.process().await;
+        let response = chain_test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!(SomeInput::Second, Arc::try_unwrap(response).unwrap().into_inner());
@@ -95,9 +140,9 @@ mod test {
     async fn chain_enum_to_string_to_enum() {
         let mut triple_test = TripleTest::new(TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } });
         let value = Arc::new(Mutex::new(SomeInput::First));
-        triple_test.receive(value).await;
-        triple_test.poll().await;
-        let response = triple_test.send().await;
+        triple_test.push(value).await;
+        triple_test.process().await;
+        let response = triple_test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!("first", response.lock().await.as_str());
@@ -110,11 +155,11 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_to_chain() {
-        let mut chain_to_chain = ChainToChain::new(ChainToChainInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } } });
+        let mut test = ChainToChain::new(ChainToChainInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } } });
         let value = Arc::new(Mutex::new(SomeInput::First));
-        chain_to_chain.receive(value).await;
-        chain_to_chain.poll().await;
-        let response = chain_to_chain.send().await;
+        test.push(value).await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!("first", response.lock().await.as_str());
@@ -127,11 +172,11 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_to_chain_to_chain_link() {
-        let mut chain_to_chain_to_link = ChainToChainToLink::new(ChainToChainToLinkInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } }, xxx_string_to_some_input: StringToSomeInputInitializer { } });
+        let mut test = ChainToChainToLink::new(ChainToChainToLinkInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } }, xxx_string_to_some_input: StringToSomeInputInitializer { } });
         let value = Arc::new(Mutex::new(SomeInput::Second));
-        chain_to_chain_to_link.receive(value).await;
-        chain_to_chain_to_link.poll().await;
-        let response = chain_to_chain_to_link.send().await;
+        test.push(value).await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!(SomeInput::Second, Arc::try_unwrap(response).unwrap().into_inner());
@@ -144,24 +189,10 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn split_to_two_chain_links() {
-        chain_link!(StringToInt, input: String => i32, {
-            if input.received.as_str() == "test" {
-                1
-            }
-            else {
-                2
-            }
-        });
-        chain_link!(StringPrint, input: String => i32, {
-            println!("{}", input.received);
-            0
-        });
-        split_merge!(Test, String => i32, (StringToInt, StringPrint));
-
-        let mut test = Test::new(TestInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } });
-        test.receive(Arc::new(Mutex::new(String::from("test")))).await;
-        test.poll().await;
-        let response = test.send().await;
+        let mut test = SplitMergeTwoChainLinks::new(SplitMergeTwoChainLinksInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } });
+        test.push(Arc::new(Mutex::new(String::from("test")))).await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!(1, Arc::try_unwrap(response).unwrap().into_inner());
@@ -170,8 +201,8 @@ mod test {
                 panic!("Unexpected None response.");
             }
         }
-        test.poll().await;
-        let response = test.send().await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!(0, Arc::try_unwrap(response).unwrap().into_inner());
@@ -180,8 +211,8 @@ mod test {
                 panic!("Unexpected None response.");
             }
         }
-        test.poll().await;
-        let response = test.send().await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 panic!("Unexpected Some response with value {}.", response.lock().await);
@@ -194,25 +225,10 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn split_to_two_chain_links_round_robin_finds_flushed_chainlink() {
-        chain_link!(StringToInt, input: String => i32, {
-            if input.received.as_str() == "test" {
-                1
-            }
-            else {
-                2
-            }
-        });
-        chain_link!(StringPrint, input: String => i32, {
-            println!("{}", input.received);
-            0
-        });
-        split_merge!(SplitMerge, String => i32, (StringToInt, StringPrint));
-        split_merge!(Primary, String => i32, (StringToInt, SplitMerge, StringPrint));
-
-        let mut test = Primary::new(PrimaryInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_split_merge_initializer: SplitMergeInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } }, xxx_string_print_initializer: StringPrintInitializer { } });
-        test.receive(Arc::new(Mutex::new(String::from("test")))).await;
-        test.poll().await;
-        let response = test.send().await;
+        let mut test = SplitMergeMultiple::new(SplitMergeMultipleInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_split_merge_two_chain_links_initializer: SplitMergeTwoChainLinksInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } }, xxx_string_print_initializer: StringPrintInitializer { } });
+        test.push(Arc::new(Mutex::new(String::from("test")))).await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!(1, Arc::try_unwrap(response).unwrap().into_inner());
@@ -221,8 +237,8 @@ mod test {
                 panic!("Unexpected None response.");
             }
         }
-        test.poll().await;
-        let response = test.send().await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!(1, Arc::try_unwrap(response).unwrap().into_inner());
@@ -231,8 +247,8 @@ mod test {
                 panic!("Unexpected None response.");
             }
         }
-        test.poll().await;
-        let response = test.send().await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!(0, Arc::try_unwrap(response).unwrap().into_inner());
@@ -241,8 +257,8 @@ mod test {
                 panic!("Unexpected None response.");
             }
         }
-        test.poll().await;
-        let response = test.send().await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 assert_eq!(0, Arc::try_unwrap(response).unwrap().into_inner());
@@ -251,8 +267,8 @@ mod test {
                 panic!("Unexpected None response.");
             }
         }
-        test.poll().await;
-        let response = test.send().await;
+        test.process().await;
+        let response = test.try_pop().await;
         match response {
             Some(response) => {
                 panic!("Unexpected Some response with value {}.", response.lock().await);

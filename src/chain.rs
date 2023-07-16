@@ -5,9 +5,10 @@ pub trait ChainLink {
     type TInput;
     type TOutput;
 
-    async fn receive(&mut self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
-    async fn send(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<Self::TOutput>>>;
-    async fn poll(&mut self);
+    async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
+    async fn push_raw(&mut self, input: Self::TInput);
+    async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<Self::TOutput>>>;
+    async fn process(&mut self);
     //async fn chain(self, other: impl ChainLink) -> ChainLink;
 }
 
@@ -39,8 +40,8 @@ macro_rules! chain_link {
 
             #[allow(dead_code)]
             pub struct [<_ $type Input>]<'a> {
-                received: &'a mut $receive_type,
-                initializer: &'a mut [<$type Initializer>]
+                received: Option<&'a mut $receive_type>,
+                initializer: std::sync::Arc<tokio::sync::Mutex<[<$type Initializer>]>>
             }
 
             #[async_trait::async_trait]
@@ -48,23 +49,37 @@ macro_rules! chain_link {
                 type TInput = $receive_type;
                 type TOutput = $output_type;
 
-                async fn receive(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$receive_type>>) -> () {
+                async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$receive_type>>) -> () {
                     self.input_queue.push(input);
                 }
-                async fn send(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$output_type>>> {
+                async fn push_raw(&mut self, input: $receive_type) -> () {
+                    self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                }
+                async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$output_type>>> {
                     self.output_queue.try_pop().map(|element| {
                         element.into()
                     })
                 }
-                async fn poll(&mut self) {
-                    if let Some($receive_name) = self.input_queue.try_pop() {
-                        let received: &mut $receive_type = &mut (*$receive_name.lock().await);
-                        let initializer: &mut [<$type Initializer>] = &mut (*self.initializer.lock().await);
+                async fn process(&mut self) {
+                    async fn get_map_block_result($receive_name: [<_ $type Input>]<'_>) -> Option<$output_type> {
+                        $map_block
+                    }
+                    let $receive_name = [<_ $type Input>] {
+                        received: None,
+                        initializer: self.initializer.clone()
+                    };
+                    if let Some(output) = get_map_block_result($receive_name).await {
+                        self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output)));
+                    }
+                    else if let Some($receive_name) = self.input_queue.try_pop() {
+                        let mut locked_receive_name = $receive_name.lock().await;
                         let $receive_name = [<_ $type Input>] {
-                            received,
-                            initializer
+                            received: Some(&mut locked_receive_name),
+                            initializer: self.initializer.clone()
                         };
-                        self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new($map_block)));
+                        if let Some(output) = get_map_block_result($receive_name).await {
+                            self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output)));
+                        }
                     } 
                 }
             }
@@ -77,41 +92,33 @@ macro_rules! chain_link {
 
 #[macro_export]
 macro_rules! chain {
-    ($name:ident, $from:ty => $to:ty, $($field:ty)=>*) => {
-        chain_first!($name, $from, $to,       (x)              ()        ()                        $($field)=>*);
+    ($name:ty, $from:ty => $to:ty, $($field:ty)=>*) => {
+        chain!($name, $from, $to,       (x)              ()        ()                        $($field)=>*);
     };
-}
-
-#[allow(unused_macros)]
-macro_rules! chain_first {
-    (                    $name:ident, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty  ) => {
+    (                    $name:ty, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty  ) => {
         paste::paste! {
-            chain_remaining!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*)      );
+            chain!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*)      );
         }
     };
-    (                    $name:ident, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty =>   $($rest:ty)=>*) => {
+    (                    $name:ty, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty =>   $($rest:ty)=>*) => {
         paste::paste! {
-            chain_remaining!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*) $($rest)=>*      );
+            chain!($name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*) $($rest)=>*      );
         }
     };
-}
-
-#[allow(unused_macros)]
-macro_rules! chain_remaining {
     // In the recursive case: append another `x` into our prefix.
-    (                    $name:ident, $from:ty, $to:ty, $first:ty, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
+    (                    $name:ty, $from:ty, $to:ty, $first:ty, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
         paste::paste! {
-            chain_remaining!($name, $from, $to, $first, $first_name, $next, [<$($prefix)* _ $next:snake>],   () ($($past)*) ($($past_type)*)    );
+            chain!($name, $from, $to, $first, $first_name, $next, [<$($prefix)* _ $next:snake>],   () ($($past)*) ($($past_type)*)    );
         }
     };
-    (                    $name:ident, $from:ty, $to:ty, $first:ty, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty =>    $($rest:ty)=>*) => {
+    (                    $name:ty, $from:ty, $to:ty, $first:ty, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty =>    $($rest:ty)=>*) => {
         paste::paste! {
-            chain_remaining!($name, $from, $to, $first, $first_name,    ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)=>*      );
+            chain!($name, $from, $to, $first, $first_name,    ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)=>*      );
         }
     };
 
     // When there are no fields remaining.
-    ($name:ident, $from:ty, $to:ty, $first:ty, $first_name:ident, $last:ty, $last_name:ident,  () ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
+    ($name:ty, $from:ty, $to:ty, $first:ty, $first_name:ident, $last:ty, $last_name:ident,  () ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
             pub struct $name {
                 $first_name: $first,
@@ -122,11 +129,11 @@ macro_rules! chain_remaining {
             }
 
             pub struct [<$name Initializer>] {
-                $first_name: [<$first Initializer>],
+                pub $first_name: [<$first Initializer>],
                 $(
-                    [<$($field)*>]: [<$field_type Initializer>],
+                    pub [<$($field)*>]: [<$field_type Initializer>],
                 )*
-                $last_name: [<$last Initializer>]
+                pub $last_name: [<$last Initializer>]
             }
 
             impl $name {
@@ -146,26 +153,29 @@ macro_rules! chain_remaining {
                 type TInput = $from;
                 type TOutput = $to;
 
-                async fn receive(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
-                    self.$first_name.receive(input).await
+                async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                    self.$first_name.push(input).await
                 }
-                async fn send(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
-                    self.$last_name.send().await
+                async fn push_raw(&mut self, input: $from) -> () {
+                    self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
                 }
-                async fn poll(&mut self) {
-                    self.$first_name.poll().await;
-                    let next_input = self.$first_name.send().await;
+                async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
+                    self.$last_name.try_pop().await
+                }
+                async fn process(&mut self) {
+                    self.$first_name.process().await;
+                    let next_input = self.$first_name.try_pop().await;
                     $(
                         if let Some(next_input) = next_input {
-                            self.[<$($field)*>].receive(next_input).await;
+                            self.[<$($field)*>].push(next_input).await;
                         }
-                        self.[<$($field)*>].poll().await;
-                        let next_input = self.[<$($field)*>].send().await;
+                        self.[<$($field)*>].process().await;
+                        let next_input = self.[<$($field)*>].try_pop().await;
                     )*
                     if let Some(next_input) = next_input {
-                        self.$last_name.receive(next_input).await;
+                        self.$last_name.push(next_input).await;
                     }
-                    self.$last_name.poll().await;
+                    self.$last_name.process().await;
                 }
             }
         }
@@ -202,7 +212,7 @@ macro_rules! split_merge_helper {
 
             pub struct [<$name Initializer>] {
                 $(
-                    [<$($field)* _initializer>]: [<$field_type Initializer>],
+                    pub [<$($field)* _initializer>]: [<$field_type Initializer>],
                 )*
             }
 
@@ -222,10 +232,13 @@ macro_rules! split_merge_helper {
                 type TInput = $from;
                 type TOutput = $to;
 
-                async fn receive(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
-                    futures::join!($(self.[<$($field)*>].receive(input.clone())),*);
+                async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                    futures::join!($(self.[<$($field)*>].push(input.clone())),*);
                 }
-                async fn send(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
+                async fn push_raw(&mut self, input: $from) -> () {
+                    self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                }
+                async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
 
                     // loop until we have found `Some` or looped around all internal ChainLink instanes
                     let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
@@ -249,7 +262,7 @@ macro_rules! split_merge_helper {
                         }
                         $(
                             else if next_send_field_index == ($index) {
-                                output = self.[<$($field)*>].send().await;
+                                output = self.[<$($field)*>].try_pop().await;
                             }
                         )*
                         else {
@@ -267,8 +280,8 @@ macro_rules! split_merge_helper {
                     // if we've exhausted all internal `ChainLink` instances, return None
                     return None;
                 }
-                async fn poll(&mut self) {
-                    futures::join!($(self.[<$($field)*>].poll()),*);
+                async fn process(&mut self) {
+                    futures::join!($(self.[<$($field)*>].process()),*);
                 }
             }
         }
