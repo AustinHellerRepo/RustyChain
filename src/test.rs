@@ -158,13 +158,84 @@ mod test {
         });
         split_merge!(Test, String => i32, (StringToInt, StringPrint));
 
-        let mut test = Test::new(StringToIntInitializer { }, StringPrintInitializer { });
+        let mut test = Test::new(TestInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } });
         test.receive(Arc::new(Mutex::new(String::from("test")))).await;
         test.poll().await;
         let response = test.send().await;
         match response {
             Some(response) => {
                 assert_eq!(1, Arc::try_unwrap(response).unwrap().into_inner());
+            },
+            None => {
+                panic!("Unexpected None response.");
+            }
+        }
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                assert_eq!(0, Arc::try_unwrap(response).unwrap().into_inner());
+            },
+            None => {
+                panic!("Unexpected None response.");
+            }
+        }
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                panic!("Unexpected Some response with value {}.", response.lock().await);
+            },
+            None => {
+                // expected path
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn split_to_two_chain_links_round_robin_finds_flushed_chainlink() {
+        chain_link!(StringToInt, input: String => i32, {
+            if input.received.as_str() == "test" {
+                1
+            }
+            else {
+                2
+            }
+        });
+        chain_link!(StringPrint, input: String => i32, {
+            println!("{}", input.received);
+            0
+        });
+        split_merge!(SplitMerge, String => i32, (StringToInt, StringPrint));
+        split_merge!(Primary, String => i32, (StringToInt, SplitMerge, StringPrint));
+
+        let mut test = Primary::new(PrimaryInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_split_merge_initializer: SplitMergeInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } }, xxx_string_print_initializer: StringPrintInitializer { } });
+        test.receive(Arc::new(Mutex::new(String::from("test")))).await;
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                assert_eq!(1, Arc::try_unwrap(response).unwrap().into_inner());
+            },
+            None => {
+                panic!("Unexpected None response.");
+            }
+        }
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                assert_eq!(1, Arc::try_unwrap(response).unwrap().into_inner());
+            },
+            None => {
+                panic!("Unexpected None response.");
+            }
+        }
+        test.poll().await;
+        let response = test.send().await;
+        match response {
+            Some(response) => {
+                assert_eq!(0, Arc::try_unwrap(response).unwrap().into_inner());
             },
             None => {
                 panic!("Unexpected None response.");
