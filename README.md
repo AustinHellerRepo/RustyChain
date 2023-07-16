@@ -8,6 +8,7 @@ This library abstracts over functional processing units called `ChainLink`s and 
 - A `Chain` is a concatenation of `ChainLink`s (and other `Chain`s) and is a natural extension of this methodology for processing.
   - By using the `chain!` macro you can concatenate both `ChainLink`s and `Chain`s naturally.
 - A `split_merge!` macro permits parallel processing multiple `ChainLink` implementations, round-robin iterating over them per `send`.
+  - If a `ChainLink` returns `None`, it will try the next one, etc.
 
 ## Usage
 
@@ -29,5 +30,3 @@ I have always wanted highly testable code and to work in an environment where th
 
 - split_merge! conditions
   - This would allow the `send` from one `ChainLink` to make its way to different destination `ChainLink`s based on a conditional block per destination, allowing logical, asynchronous splitting of processing.
-- split_merge! more efficient round-robin
-  - If the current parallel `ChainLink` returned `None`, try all of the others (in order) until either all of them return `None` or a `Some` is found.
