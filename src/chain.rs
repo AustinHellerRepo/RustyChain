@@ -228,20 +228,18 @@ macro_rules! split_merge_helper {
                 async fn send(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
 
                     // loop until we have found `Some` or looped around all internal ChainLink instanes
+                    let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
                     let mut send_attempts_count: usize = 0;
                     while send_attempts_count < $count {
 
                         // get the next field index to check
                         let next_send_field_index: usize;
-                        {
-                            let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
-                            next_send_field_index = *next_send_field_index_lock;
-                            if next_send_field_index + 1 == ($count) {
-                                *next_send_field_index_lock = 0;
-                            }
-                            else {
-                                *next_send_field_index_lock = next_send_field_index + 1;
-                            }
+                        next_send_field_index = *next_send_field_index_lock;
+                        if next_send_field_index + 1 == ($count) {
+                            *next_send_field_index_lock = 0;
+                        }
+                        else {
+                            *next_send_field_index_lock = next_send_field_index + 1;
                         }
                         
                         // get the output for the current field index
@@ -270,9 +268,7 @@ macro_rules! split_merge_helper {
                     return None;
                 }
                 async fn poll(&mut self) {
-                    $(
-                        self.[<$($field)*>].poll().await;
-                    )*
+                    futures::join!($(self.[<$($field)*>].poll()),*);
                 }
             }
         }
