@@ -6,13 +6,11 @@ use tempfile::NamedTempFile;
 
 mod etl {
     use std::{io::{BufRead, BufReader, SeekFrom, Seek}, fs::File};
-    use nom::{bytes::complete::tag, sequence::tuple, IResult};
-    use nom::sequence::delimited;
+    use nom::{bytes::complete::tag, IResult};
 
     use rusty_chain::{chain_link, chain};
 
     chain_link!(ReadFromFile => (buffer: Option<BufReader<File>>), input: String => String, {
-        println!("ReadFromFile processing: {:?}", input.received);
         if let Some(file_path) = input.received {
             // store the file buffer in the initializer
             let mut file = File::open(file_path.clone()).expect("The file should open.");
@@ -75,7 +73,6 @@ mod etl {
     }
 
     chain_link!(ParseStringToCustomer, input: String => Customer, {
-        println!("ParseStringToCustomer processing: {:?}", input.received);
         match input.received {
             Some(received) => {
                 let customer: Customer;
@@ -111,7 +108,6 @@ mod etl {
     }
 
     chain_link!(InsertCustomerIntoDatabase => (repository: DatabaseRepository), input: Customer => bool, {
-        println!("InsertCustomerIntoDatabase processing: {:?}", input.received);
         match input.received {
             Some(received) => {
                 input.initializer.lock().await.repository.insert_customer(&*received);
@@ -136,9 +132,6 @@ async fn main() {
     writeln!(second_file, "Adam Allison,31").unwrap();
     writeln!(second_file, "Brady Brickly,32").unwrap();
     writeln!(second_file, "Charlie Chucks,43").unwrap();
-
-    println!("first file size: {}", first_file.as_file().metadata().unwrap().len());
-    println!("second file size: {}", second_file.as_file().metadata().unwrap().len());
 
     // setup chain
     let mut etl_process = EtlProcess::new(EtlProcessInitializer { x_read_from_file: ReadFromFileInitializer { buffer: None }, xx_parse_string_to_customer: ParseStringToCustomerInitializer { }, xxx_insert_customer_into_database: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { }}});
