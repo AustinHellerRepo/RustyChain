@@ -113,7 +113,7 @@ macro_rules! chain_remaining {
     // When there are no fields remaining.
     ($name:ident, $from:ty, $to:ty, $first:ty, $first_name:ident, $last:ty, $last_name:ident,  () ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
-            struct $name {
+            pub struct $name {
                 $first_name: $first,
                 $(
                     [<$($field)*>]: $field_type,
@@ -121,7 +121,7 @@ macro_rules! chain_remaining {
                 $last_name: $last
             }
 
-            struct [<$name Initializer>] {
+            pub struct [<$name Initializer>] {
                 $first_name: [<$first Initializer>],
                 $(
                     [<$($field)*>]: [<$field_type Initializer>],
@@ -130,7 +130,7 @@ macro_rules! chain_remaining {
             }
 
             impl $name {
-                fn new(initializer: [<$name Initializer>]) -> Self {
+                pub fn new(initializer: [<$name Initializer>]) -> Self {
                     $name {
                         $first_name: $first::new(initializer.$first_name),
                         $(
@@ -200,11 +200,17 @@ macro_rules! split_merge_helper {
                 next_send_field_index: tokio::sync::Mutex<usize>
             }
 
+            pub struct [<$name Initializer>] {
+                $(
+                    [<$($field)* _initializer>]: [<$field_type Initializer>],
+                )*
+            }
+
             impl $name {
-                pub fn new($([<$($field)* _initializer>]: [<$field_type Initializer>]),*) -> Self {
+                pub fn new(initializer: [<$name Initializer>]) -> Self {
                     $name {
                         $(
-                            [<$($field)*>]: $field_type::new([<$($field)* _initializer>]),
+                            [<$($field)*>]: $field_type::new(initializer.[<$($field)* _initializer>]),
                         )*
                         next_send_field_index: tokio::sync::Mutex::new(0)
                     }
@@ -220,30 +226,48 @@ macro_rules! split_merge_helper {
                     futures::join!($(self.[<$($field)*>].receive(input.clone())),*);
                 }
                 async fn send(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
-                    // TODO try other fields if None is returned
-                    let next_send_field_index: usize;
-                    {
-                        let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
-                        next_send_field_index = *next_send_field_index_lock;
-                        if next_send_field_index + 1 == ($count) {
-                            *next_send_field_index_lock = 0;
+
+                    // loop until we have found `Some` or looped around all internal ChainLink instanes
+                    let mut send_attempts_count: usize = 0;
+                    while send_attempts_count < $count {
+
+                        // get the next field index to check
+                        let next_send_field_index: usize;
+                        {
+                            let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
+                            next_send_field_index = *next_send_field_index_lock;
+                            if next_send_field_index + 1 == ($count) {
+                                *next_send_field_index_lock = 0;
+                            }
+                            else {
+                                *next_send_field_index_lock = next_send_field_index + 1;
+                            }
                         }
+                        
+                        // get the output for the current field index
+                        let output;
+                        if false {
+                            panic!("False should not be true");
+                        }
+                        $(
+                            else if next_send_field_index == ($index) {
+                                output = self.[<$($field)*>].send().await;
+                            }
+                        )*
                         else {
-                            *next_send_field_index_lock = next_send_field_index + 1;
+                            panic!("Index out of bounds: next_send_field_index");
                         }
-                    }
-                    
-                    if false {
-                        panic!("False should not be true");
-                    }
-                    $(
-                        else if next_send_field_index == ($index) {
-                            return self.[<$($field)*>].send().await;
+
+                        // return the output if `Some`, else try to loop again
+                        if output.is_some() {
+                            return output;
                         }
-                    )*
-                    else {
-                        panic!("Index out of bounds: next_send_field_index");
+
+                        send_attempts_count += 1;
                     }
+
+                    // if we've exhausted all internal `ChainLink` instances, return None
+                    return None;
                 }
                 async fn poll(&mut self) {
                     $(
