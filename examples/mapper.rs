@@ -108,7 +108,7 @@ async fn main() {
         }
     });
 
-    // another thread polls faster than it may receive data
+    // another thread polls the `process` method, performing the mapping
     // this allows chainlink data migration to be adjusted dynamically at runtime
     // this is not a requirement - you could just poll before each send
     let join_mapper = mapper.clone();

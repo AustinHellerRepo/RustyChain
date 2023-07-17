@@ -27,6 +27,10 @@ This example demonstrates how a `ChainLink` may exist to pull records from a dat
 This example demonstrates how a file-loaded ETL process could be separated out into three `ChainLink`s, all connected together as a `Chain`, allowing you to pass in file paths and get back at the end if the current line processed was successful.
 This example also covers basic usage of the `nom` crate and how the initializer can be used as a mutable buffer.
 
+### ETL Split
+
+This example is exactly like the ETL example, only that it also demonstrates splitting the final output between two databases using the `split_merge!` macro.
+
 ## Inspiration
 
 I have always wanted highly testable code and to work in an environment where the logic of my processes was absolutely dependable.
