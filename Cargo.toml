@@ -1,6 +1,6 @@
 [package]
 name = "rusty_chain"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Austin Heller"]
 description = "This library abstracts over functional processing units called `chain links`. Each link in the chain is meant to be independent, immutable, idempotent, and highly testable."
