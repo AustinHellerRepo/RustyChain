@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use madlib::{SpeechPart, MadlibConstructor, MadlibConstructionInitializer};
+use madlib::{SpeechPart, MadlibConstructor, MadlibConstructionInitializer, CollectConstructedMadlibPartsInitializer, MadlibPart};
+use rusty_chain::chain::ChainLink;
 
 
 mod madlib {
@@ -9,6 +10,7 @@ mod madlib {
     use rand::seq::SliceRandom;
     use rusty_chain::{chain_link, chain};
 
+    #[derive(Clone)]
     pub enum MadlibPart {
         Static(String),
         Dynamic(SpeechPart),
@@ -30,30 +32,30 @@ mod madlib {
     // TODO make the possible_words_per_speech_part purely part of the construction and pass in a vector of madlib parts
 
     chain_link!(MadlibConstruction => (
-            madlib_parts: Vec<MadlibPart>,
+            possible_words_per_speech_part: HashMap<SpeechPart, Vec<String>>,
             index: usize,
-            possible_words_per_speech_part: Option<HashMap<SpeechPart, Vec<String>>>
+            madlib_parts: Option<Vec<MadlibPart>>
         ),
-        input: HashMap<SpeechPart, Vec<String>> => ConstructedMadlibPart, {
+        input: Vec<MadlibPart> => ConstructedMadlibPart, {
 
-        if let Some(possible_words_per_speech_part) = input.received {
-            input.initializer.lock().await.possible_words_per_speech_part.replace(possible_words_per_speech_part.clone());
+        if let Some(madlib_parts) = input.received {
+            input.initializer.lock().await.madlib_parts.replace(madlib_parts.clone());
         }
 
         let mut locked_initializer = input.initializer.lock().await;
-        if let Some(possible_words_per_speech_part) = locked_initializer.possible_words_per_speech_part.as_ref() {
-            if locked_initializer.index == locked_initializer.madlib_parts.len() {
+        if let Some(madlib_parts) = locked_initializer.madlib_parts.as_ref() {
+            if locked_initializer.index == madlib_parts.len() {
                 None
             }
             else
             {
                 let index = locked_initializer.index;
-                let word = match &locked_initializer.madlib_parts[index] {
+                let word = match &madlib_parts[index] {
                     MadlibPart::Static(text) => {
                         ConstructedMadlibPart::Word(text.clone())
                     },
                     MadlibPart::Dynamic(part) => {
-                        let possible_words = possible_words_per_speech_part.get(&part).unwrap();
+                        let possible_words = locked_initializer.possible_words_per_speech_part.get(&part).unwrap();
                         ConstructedMadlibPart::Word(possible_words.choose(&mut rand::thread_rng()).unwrap().clone())
                     },
                     MadlibPart::End => {
@@ -88,11 +90,12 @@ mod madlib {
         }
     });
 
-    chain!(MadlibConstructor, HashMap<SpeechPart, Vec<String>> => String, MadlibConstruction => CollectConstructedMadlibParts);
+    chain!(MadlibConstructor, Vec<MadlibPart> => String, MadlibConstruction => CollectConstructedMadlibParts);
 }
 
 #[tokio::main]
 async fn main() {
+    
     let mut possible_words_per_speech_part: HashMap<SpeechPart, Vec<String>> = HashMap::new();
     possible_words_per_speech_part.insert(SpeechPart::Noun, vec![
         String::from("door"),
@@ -110,5 +113,37 @@ async fn main() {
         String::from("sour")
     ]);
     
-    let madlib_constructor = MadlibConstructor::new(madlib::MadlibConstructorInitializer { x_madlib_construction: MadlibConstructionInitializer { }, xx_collect_constructed_madlib_parts: () })
+    let mut madlib_constructor = MadlibConstructor::new(madlib::MadlibConstructorInitializer {
+        x_madlib_construction: MadlibConstructionInitializer {
+            possible_words_per_speech_part,
+            index: 0,
+            madlib_parts: None
+        },
+        xx_collect_constructed_madlib_parts: CollectConstructedMadlibPartsInitializer {
+            buffer: vec![]
+        }
+    });
+
+    madlib_constructor.push_raw(vec![
+        MadlibPart::Static(String::from("The big")),
+        MadlibPart::Dynamic(SpeechPart::Noun),
+        MadlibPart::Static(String::from("would eventually")),
+        MadlibPart::Dynamic(SpeechPart::Verb),
+        MadlibPart::Static(String::from("as it thought about the")),
+        MadlibPart::Dynamic(SpeechPart::Adjective),
+        MadlibPart::Dynamic(SpeechPart::Noun),
+        MadlibPart::End
+    ]).await;
+
+    // iterate until the process has completed
+    let is_processed = madlib_constructor.process().await;
+
+    assert!(is_processed);
+
+    let output = madlib_constructor
+        .try_pop()
+        .await
+        .expect("The internal iteration process should occur since there is active flow between chainlinks.");
+
+    println!("{}", output.lock().await);
 }

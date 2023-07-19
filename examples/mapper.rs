@@ -64,27 +64,32 @@ mod mapper_example {
     }
 
     chain_link!(GetParentById => (connection_string: String), input: GetParentByIdInput => ParentModel, {
-        // the connection string was part of the initializer, so we can create our database connection on demand
-        let database_connection = DatabaseConnection::new(input.initializer.lock().await.connection_string.clone());
-        let parent_id = input.received.unwrap().parent_id;
-        let parent_record = database_connection.get_parent_by_parent_id(parent_id);
-        let child_records = database_connection.get_child_records_by_parent_id(parent_id);
+        match input.received {
+            Some(parent_id_container) => {
+                // the connection string was part of the initializer, so we can create our database connection on demand
+                let database_connection = DatabaseConnection::new(input.initializer.lock().await.connection_string.clone());
+                let parent_id = parent_id_container.parent_id;
+                let parent_record = database_connection.get_parent_by_parent_id(parent_id);
+                let child_records = database_connection.get_child_records_by_parent_id(parent_id);
 
-        // just checking that the data matches expectations
-        assert_eq!(parent_id, parent_record.parent_id);
+                // just checking that the data matches expectations
+                assert_eq!(parent_id, parent_record.parent_id);
 
-        Some(ParentModel {
-            parent_id: parent_record.parent_id,
-            name: parent_record.name,
-            children_image_bytes: child_records
-                .into_iter()
-                .map(|cr| {
-                    // another check that data matches expectations
-                    assert_eq!(parent_record.parent_id, cr.parent_id);
-                    cr.image_bytes
+                Some(ParentModel {
+                    parent_id: parent_record.parent_id,
+                    name: parent_record.name,
+                    children_image_bytes: child_records
+                        .into_iter()
+                        .map(|cr| {
+                            // another check that data matches expectations
+                            assert_eq!(parent_record.parent_id, cr.parent_id);
+                            cr.image_bytes
+                        })
+                        .collect()
                 })
-                .collect()
-        })
+            },
+            None => None
+        }
     });
 }
 
@@ -96,44 +101,33 @@ async fn main() {
 
     let mapper = Arc::new(Mutex::new(GetParentById::new(GetParentByIdInitializer { connection_string: String::from("get from settings") })));
     
-    // one thread is queueing up parent models to be received on the other end
+    // this thread is queueing up parent models to be received on the other end faster than they can be pulled out
     let receive_mapper = mapper.clone();
     let receive_task = tokio::task::spawn(async {
         let mapper = receive_mapper;
         for index in 0..10 {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_millis(250)).await;
             println!("receiving {}...", index);
             mapper.lock().await.push(Arc::new(Mutex::new(GetParentByIdInput::new(index)))).await;
             println!("received {}.", index);
         }
     });
 
-    // another thread polls the `process` method, performing the mapping
-    // this allows chainlink data migration to be adjusted dynamically at runtime
-    // this is not a requirement - you could just poll before each send
-    let join_mapper = mapper.clone();
-    let poll_task = tokio::task::spawn(async {
-        let mapper = join_mapper;
-        for _ in 0..20 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-            println!("polling...");
-            mapper.lock().await.process().await;
-            println!("polled.");
-        }
-    });
-
-    // this thread is pulling out parent models on an interval
+    // this thread is pulling out parent models on an interval slower than they are being pushed in
     let send_mapper = mapper.clone();
     let send_task = tokio::task::spawn(async {
         let mapper = send_mapper;
         for _ in 0..10 {
-            tokio::time::sleep(Duration::from_millis(1200)).await;
-            println!("sending...");
+            tokio::time::sleep(Duration::from_millis(600)).await;
+            println!("processing...");
+            mapper.lock().await.process().await;
+            println!("processed.");
+            println!("popping...");
             let model = mapper.lock().await.try_pop().await;
             match model {
                 Some(model) => {
                     let locked_model = model.lock().await;
-                    println!("sent {:?}", locked_model);
+                    println!("popped {:?}", locked_model);
                 },
                 None => {
                     panic!("Unexpected None result.");
@@ -142,10 +136,9 @@ async fn main() {
         }
     });
 
-    let result = tokio::join!(receive_task, poll_task, send_task);
-    result.0.expect("The receive task should join properly.");
-    result.1.expect("The receive task should join properly.");
-    result.2.expect("The receive task should join properly.");
+    let result = tokio::join!(receive_task, send_task);
+    result.0.expect("The 0th receive task should join properly.");
+    result.1.expect("The 1th receive task should join properly.");
 
     println!("Successful!");
 }
