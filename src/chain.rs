@@ -8,7 +8,7 @@ pub trait ChainLink {
     async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
     async fn push_raw(&mut self, input: Self::TInput);
     async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<Self::TOutput>>>;
-    async fn process(&mut self);
+    async fn process(&mut self) -> bool;
     //async fn chain(self, other: impl ChainLink) -> ChainLink;
 }
 
@@ -60,7 +60,7 @@ macro_rules! chain_link {
                         element.into()
                     })
                 }
-                async fn process(&mut self) {
+                async fn process(&mut self) -> bool {
                     async fn get_map_block_result($receive_name: [<_ $type Input>]<'_>) -> Option<$output_type> {
                         $map_block
                     }
@@ -70,6 +70,7 @@ macro_rules! chain_link {
                     };
                     if let Some(output) = get_map_block_result($receive_name).await {
                         self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output)));
+                        return true;
                     }
                     else if let Some($receive_name) = self.input_queue.try_pop() {
                         let mut locked_receive_name = $receive_name.lock().await;
@@ -79,8 +80,10 @@ macro_rules! chain_link {
                         };
                         if let Some(output) = get_map_block_result($receive_name).await {
                             self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output)));
+                            return true;
                         }
                     } 
+                    return false;
                 }
             }
         }
@@ -120,6 +123,7 @@ macro_rules! chain {
     // When there are no fields remaining.
     (end $name:ty, $from:ty, $to:ty, $first:ty, $first_name:ident, $last:ty, $last_name:ident,  () ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
+
             pub struct $name {
                 $first_name: $first,
                 $(
@@ -162,20 +166,25 @@ macro_rules! chain {
                 async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
                     self.$last_name.try_pop().await
                 }
-                async fn process(&mut self) {
-                    self.$first_name.process().await;
-                    let next_input = self.$first_name.try_pop().await;
-                    $(
+                async fn process(&mut self) -> bool {
+                    let mut is_at_least_one_processed = true;
+                    let mut is_last_processed = false;
+                    while is_at_least_one_processed && !is_last_processed {
+                        is_at_least_one_processed = self.$first_name.process().await;
+                        let next_input = self.$first_name.try_pop().await;
+                        $(
+                            if let Some(next_input) = next_input {
+                                self.[<$($field)*>].push(next_input).await;
+                            }
+                            is_at_least_one_processed |= self.[<$($field)*>].process().await;
+                            let next_input = self.[<$($field)*>].try_pop().await;
+                        )*
                         if let Some(next_input) = next_input {
-                            self.[<$($field)*>].push(next_input).await;
+                            self.$last_name.push(next_input).await;
                         }
-                        self.[<$($field)*>].process().await;
-                        let next_input = self.[<$($field)*>].try_pop().await;
-                    )*
-                    if let Some(next_input) = next_input {
-                        self.$last_name.push(next_input).await;
+                        is_last_processed = self.$last_name.process().await;
                     }
-                    self.$last_name.process().await;
+                    return is_last_processed;
                 }
             }
         }
@@ -185,19 +194,19 @@ macro_rules! chain {
 #[macro_export]
 macro_rules! split_merge {
     ($name:ty, $from:ty => $to:ty, ($($destination:ty),*)) => {
-        split_merge!(middle $name, $from, $to, (0) () (x) () (), $($destination),*);
+        split_merge!(middle $name, $from, $to, () (0) () (x) () (), $($destination),*);
     };
-    (middle $name:ty, $from:ty, $to:ty, ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
+    (middle $name:ty, $from:ty, $to:ty, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
         paste::paste! {
-            split_merge!(end $name, $from, $to, ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
+            split_merge!(end $name, $from, $to, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
         }
     };
-    (middle $name:ty, $from:ty, $to:ty, ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
+    (middle $name:ty, $from:ty, $to:ty, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
         paste::paste! {
-            split_merge!(middle $name, $from, $to, ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
+            split_merge!(middle $name, $from, $to, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
         }
     };
-    (end $name:ident, $from:ty, $to:ty, ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
+    (end $name:ident, $from:ty, $to:ty, ($([$bool:tt])*) ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
             pub struct $name {
                 $(
@@ -276,8 +285,10 @@ macro_rules! split_merge {
                     // if we've exhausted all internal `ChainLink` instances, return None
                     return None;
                 }
-                async fn process(&mut self) {
-                    futures::join!($(self.[<$($field)*>].process()),*);
+                async fn process(&mut self) -> bool {
+                    let bool_tuple = futures::join!($(self.[<$($field)*>].process()),*);
+                    let false_tuple = ($($bool),*);
+                    return bool_tuple != false_tuple;
                 }
             }
         }
