@@ -1,5 +1,5 @@
 # Rusty Chain
-This library abstracts over functional processing units called chain links and chains. Each link in the chain is meant to be independent, immutable, idempotent, parallelizable, and highly testable.
+This library abstracts over functional processing units represented as chainlinks. Each link in the chain is meant to be independent, idempotent, largely immutable, and highly testable.
 
 ## Features
 
