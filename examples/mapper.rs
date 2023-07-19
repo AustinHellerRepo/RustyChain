@@ -3,6 +3,8 @@ use tokio::sync::Mutex;
 
 mod mapper_example {
 
+    use std::time::Duration;
+
     use rusty_chain::chain_link;
 
     pub struct ChildRecord {
@@ -19,21 +21,23 @@ mod mapper_example {
     }
 
     impl DatabaseConnection {
-        pub fn get_parent_by_parent_id(&self, parent_id: i32) -> ParentRecord {
+        pub async fn get_parent_by_parent_id(&self, parent_id: i32) -> ParentRecord {
+            tokio::time::sleep(Duration::from_millis(500)).await;
             ParentRecord {
                 parent_id,
                 name: String::from("Some name")
             }
         }
-        pub fn get_child_records_by_parent_id(&self, parent_id: i32) -> Vec<ChildRecord> {
+        pub async fn get_child_records_by_parent_id(&self, parent_id: i32) -> Vec<ChildRecord> {
             // return two child records
+            tokio::time::sleep(Duration::from_millis(500)).await;
             vec![
                 ChildRecord {
                     parent_id,
-                    image_bytes: vec![0, 1, 2, 3]
+                    image_bytes: vec![0, 1]
                 }, ChildRecord {
                     parent_id,
-                    image_bytes: vec![4, 5, 6, 7]
+                    image_bytes: vec![4, 5]
                 }
             ]
         }
@@ -69,8 +73,8 @@ mod mapper_example {
                 // the connection string was part of the initializer, so we can create our database connection on demand
                 let database_connection = DatabaseConnection::new(input.initializer.lock().await.connection_string.clone());
                 let parent_id = parent_id_container.parent_id;
-                let parent_record = database_connection.get_parent_by_parent_id(parent_id);
-                let child_records = database_connection.get_child_records_by_parent_id(parent_id);
+                let parent_record = database_connection.get_parent_by_parent_id(parent_id).await;
+                let child_records = database_connection.get_child_records_by_parent_id(parent_id).await;
 
                 // just checking that the data matches expectations
                 assert_eq!(parent_id, parent_record.parent_id);
@@ -106,7 +110,7 @@ async fn main() {
     let receive_task = tokio::task::spawn(async {
         let mapper = receive_mapper;
         for index in 0..10 {
-            tokio::time::sleep(Duration::from_millis(250)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
             println!("receiving {}...", index);
             mapper.lock().await.push(Arc::new(Mutex::new(GetParentByIdInput::new(index)))).await;
             println!("received {}.", index);
@@ -117,8 +121,8 @@ async fn main() {
     let send_mapper = mapper.clone();
     let send_task = tokio::task::spawn(async {
         let mapper = send_mapper;
+        tokio::time::sleep(Duration::from_millis(200)).await;
         for _ in 0..10 {
-            tokio::time::sleep(Duration::from_millis(600)).await;
             println!("processing...");
             mapper.lock().await.process().await;
             println!("processed.");
