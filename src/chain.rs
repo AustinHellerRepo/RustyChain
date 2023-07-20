@@ -5,10 +5,10 @@ pub trait ChainLink {
     type TInput;
     type TOutput;
 
-    async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
-    async fn push_raw(&mut self, input: Self::TInput);
-    async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<Self::TOutput>>>;
-    async fn process(&mut self) -> bool;
+    async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
+    async fn push_raw(&self, input: Self::TInput);
+    async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<Self::TOutput>>>;
+    async fn process(&self) -> bool;
     //async fn chain(self, other: impl ChainLink) -> ChainLink;
 }
 
@@ -49,18 +49,18 @@ macro_rules! chain_link {
                 type TInput = $receive_type;
                 type TOutput = $output_type;
 
-                async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$receive_type>>) -> () {
+                async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<$receive_type>>) -> () {
                     self.input_queue.push(input);
                 }
-                async fn push_raw(&mut self, input: $receive_type) -> () {
+                async fn push_raw(&self, input: $receive_type) -> () {
                     self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
                 }
-                async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$output_type>>> {
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$output_type>>> {
                     self.output_queue.try_pop().map(|element| {
                         element.into()
                     })
                 }
-                async fn process(&mut self) -> bool {
+                async fn process(&self) -> bool {
                     async fn get_map_block_result($receive_name: [<_ $type Input>]<'_>) -> Option<$output_type> {
                         $map_block
                     }
@@ -157,16 +157,16 @@ macro_rules! chain {
                 type TInput = $from;
                 type TOutput = $to;
 
-                async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
                     self.$first_name.push(input).await
                 }
-                async fn push_raw(&mut self, input: $from) -> () {
+                async fn push_raw(&self, input: $from) -> () {
                     self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
                 }
-                async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
                     self.$last_name.try_pop().await
                 }
-                async fn process(&mut self) -> bool {
+                async fn process(&self) -> bool {
                     let mut is_at_least_one_processed = true;
                     let mut is_last_processed = false;
                     while is_at_least_one_processed && !is_last_processed {
@@ -237,13 +237,13 @@ macro_rules! split_merge {
                 type TInput = $from;
                 type TOutput = $to;
 
-                async fn push(&mut self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
                     futures::join!($(self.[<$($field)*>].push(input.clone())),*);
                 }
-                async fn push_raw(&mut self, input: $from) -> () {
+                async fn push_raw(&self, input: $from) -> () {
                     self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
                 }
-                async fn try_pop(&mut self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
 
                     // loop until we have found `Some` or looped around all internal ChainLink instanes
                     let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
@@ -285,7 +285,7 @@ macro_rules! split_merge {
                     // if we've exhausted all internal `ChainLink` instances, return None
                     return None;
                 }
-                async fn process(&mut self) -> bool {
+                async fn process(&self) -> bool {
                     let bool_tuple = futures::join!($(self.[<$($field)*>].process()),*);
                     let false_tuple = ($($bool),*);
                     return bool_tuple != false_tuple;
