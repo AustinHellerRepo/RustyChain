@@ -329,8 +329,7 @@ macro_rules! split_merge {
                                     let [<$($field)*>] = self.[<$($field)*>].clone();
                                     let [<is_running_ $($field)*>] = self.[<is_running_ $($field)*>].clone();
                                     std::thread::spawn(move || {
-                                        let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
-                                            .worker_threads(4)
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
                                             .enable_time()
                                             .build()
                                             .unwrap();

@@ -104,6 +104,8 @@ mod etl {
 
     // example filename: "database.rs"
     pub mod database {
+        use std::time::Duration;
+
         use rusty_chain::chain_link;
         use super::models::Customer;
 
@@ -112,7 +114,14 @@ mod etl {
         }
 
         impl DatabaseRepository {
-            pub fn insert_customer(&self, customer: &Customer) {
+            pub async fn insert_customer(&self, customer: &Customer) {
+                // make the mirror database take a little longer than the primary database
+                if self.name.as_str() == "Primary" {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                else {
+                    tokio::time::sleep(Duration::from_millis(300)).await;
+                }
                 // inserts into database
                 println!("DatabaseRepository: inserted customer {} with age {} into datababase {}", customer.customer_name, customer.age, self.name);
             }
@@ -121,7 +130,7 @@ mod etl {
         chain_link!(InsertCustomerIntoDatabase => (repository: DatabaseRepository), input: Customer => bool, {
             match input.received {
                 Some(received) => {
-                    input.initializer.lock().await.repository.insert_customer(&*received);
+                    input.initializer.lock().await.repository.insert_customer(&*received).await;
                     Some(true)
                 },
                 None => None
@@ -169,6 +178,7 @@ async fn main() {
     etl_process.push_raw(get_path_as_string(second_file.path())).await;
 
     // run ETL process until completed
+    // this methodology of checking for successful pops only works because the split_merge is joined
     let mut is_successful = true;
     while is_successful {
         etl_process.process().await;

@@ -311,6 +311,7 @@ mod robotics {
         use rusty_chain::split_merge;
         use super::{model::SensorData, controller_sensor::{ControllerSensor, ControllerSensorInitializer}, camera_sensor::{CameraSensor, CameraSensorInitializer}};
 
+        // the split_merge is not joined, so this runs each sensor in separate threads
         split_merge!(SensorySplit, () => SensorData, (CameraSensor, ControllerSensor));
     }
 
