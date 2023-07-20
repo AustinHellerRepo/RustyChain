@@ -82,19 +82,25 @@ mod robotics {
             pub fn new() -> Self {
                 Controller {
                     read_attempts: Arc::new(Mutex::new(0)),
-                    last_key_press: KeyPress::Stop
+                    last_key_press: KeyPress::Go
                 }
             }
-            pub async fn read_last_keypress(&self) -> Option<KeyPress> {
+            pub async fn read_last_keypress(&mut self) -> Option<KeyPress> {
                 
                 // toggling stop and go every X reads
                 let mut locked_read_attempts = self.read_attempts.lock().await;
                 let read_attempts: u32 = *locked_read_attempts;
-                if read_attempts == 3000 {
+                if read_attempts == 8 {
                     *locked_read_attempts = 0;
                     match self.last_key_press {
-                        KeyPress::Go => Some(KeyPress::Stop),
-                        KeyPress::Stop => Some(KeyPress::Go)
+                        KeyPress::Go => {
+                            self.last_key_press = KeyPress::Stop;
+                            Some(KeyPress::Stop)
+                        },
+                        KeyPress::Stop => {
+                            self.last_key_press = KeyPress::Go;
+                            Some(KeyPress::Go)
+                        }
                     }
                 }
                 else {
@@ -120,11 +126,11 @@ mod robotics {
             }
             pub fn shutdown(&mut self) {
                 println!("{}: Robot: shutting down...", chrono::Utc::now().timestamp());
-                self.is_active = true;
+                self.is_active = false;
             }
             pub fn startup(&mut self) {
                 println!("{}: Robot: starting up...", chrono::Utc::now().timestamp());
-                self.is_active = false;
+                self.is_active = true;
             }
             pub fn move_left(&mut self) {
                 if self.is_active {
