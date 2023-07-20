@@ -113,7 +113,7 @@ async fn main() {
         String::from("sour")
     ]);
     
-    let mut madlib_constructor = MadlibConstructor::new(madlib::MadlibConstructorInitializer {
+    let madlib_constructor = MadlibConstructor::new(madlib::MadlibConstructorInitializer {
         x_madlib_construction: MadlibConstructionInitializer {
             possible_words_per_speech_part,
             index: 0,

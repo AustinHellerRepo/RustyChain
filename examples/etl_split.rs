@@ -133,7 +133,7 @@ mod etl {
         use rusty_chain::split_merge;
         use super::{models::Customer, database::{InsertCustomerIntoDatabase, InsertCustomerIntoDatabaseInitializer}};
 
-        split_merge!(SeparateDatabaseSplitMerge, Customer => bool, (InsertCustomerIntoDatabase, InsertCustomerIntoDatabase));
+        split_merge!(SeparateDatabaseSplitMerge, Customer => bool, (InsertCustomerIntoDatabase, InsertCustomerIntoDatabase), join);
     }
 
     // example filename: "etl_process.rs"
@@ -159,7 +159,7 @@ async fn main() {
     writeln!(second_file, "Charlie Chucks,43").unwrap();
 
     // setup chain
-    let mut etl_process = EtlProcess::new(EtlProcessInitializer { x_read_from_file: ReadFromFileInitializer { buffer: None }, xx_parse_string_to_customer: ParseStringToCustomerInitializer { }, xxx_separate_database_split_merge: SeparateDatabaseSplitMergeInitializer { x_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Primary")} }, xx_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Mirror") } } } });
+    let etl_process = EtlProcess::new(EtlProcessInitializer { x_read_from_file: ReadFromFileInitializer { buffer: None }, xx_parse_string_to_customer: ParseStringToCustomerInitializer { }, xxx_separate_database_split_merge: SeparateDatabaseSplitMergeInitializer { x_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Primary")} }, xx_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Mirror") } } } });
 
     // pass in files
     fn get_path_as_string(path: &std::path::Path) -> String {

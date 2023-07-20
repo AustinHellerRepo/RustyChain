@@ -1,5 +1,5 @@
 use std::{sync::Arc, time::Duration};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
 mod mapper_example {
 

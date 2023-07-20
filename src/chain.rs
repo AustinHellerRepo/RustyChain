@@ -193,20 +193,23 @@ macro_rules! chain {
 
 #[macro_export]
 macro_rules! split_merge {
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*)) => {
-        split_merge!(middle $name, $from, $to, () (0) () (x) () (), $($destination),*);
+    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), fcfs) => {
+        split_merge!(middle $name, $from, $to, false, () (0) () (x) () (), $($destination),*);
     };
-    (middle $name:ty, $from:ty, $to:ty, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
+    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), join) => {
+        split_merge!(middle $name, $from, $to, true, () (0) () (x) () (), $($destination),*);
+    };
+    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
         paste::paste! {
-            split_merge!(end $name, $from, $to, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
+            split_merge!(end $name, $from, $to, $is_join, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
         }
     };
-    (middle $name:ty, $from:ty, $to:ty, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
+    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
         paste::paste! {
-            split_merge!(middle $name, $from, $to, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
+            split_merge!(middle $name, $from, $to, $is_join, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
         }
     };
-    (end $name:ident, $from:ty, $to:ty, ($([$bool:tt])*) ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
+    (end $name:ident, $from:ty, $to:ty, $is_join:expr, ($([$bool:tt])*) ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
             pub struct $name {
                 $(
@@ -286,9 +289,32 @@ macro_rules! split_merge {
                     return None;
                 }
                 async fn process(&self) -> bool {
-                    let bool_tuple = futures::join!($(self.[<$($field)*>].process()),*);
-                    let false_tuple = ($($bool),*);
-                    return bool_tuple != false_tuple;
+                    use futures::future::FutureExt;
+
+                    if $is_join {
+                        let bool_tuple = futures::join!($(self.[<$($field)*>].process()),*);
+                        let false_tuple = ($($bool),*);
+                        return bool_tuple != false_tuple;
+                    }
+                    else {
+                        $(
+                            let mut [<fused_ $($field)*>] = self.[<$($field)*>].process().fuse();
+                        )*
+                        let mut futures_completed_count = 0;
+                        while futures_completed_count != ($count) {
+                            let is_processed = futures::select! {
+                                $(
+                                    [<$($field)*>] = [<fused_ $($field)*>] => [<$($field)*>],
+                                )*
+                            };
+                            futures_completed_count += 1;
+                            if is_processed {
+                                println!("split success");
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
                 }
             }
         }
