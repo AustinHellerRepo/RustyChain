@@ -1,5 +1,5 @@
 use std::{sync::Arc, time::Duration};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 mod mapper_example {
 
@@ -103,16 +103,16 @@ async fn main() {
     use mapper_example::*;
     use rusty_chain::chain::*;
 
-    let mapper = Arc::new(Mutex::new(GetParentById::new(GetParentByIdInitializer { connection_string: String::from("get from settings") })));
+    let mapper = Arc::new(GetParentById::new(GetParentByIdInitializer { connection_string: String::from("get from settings") }));
     
     // this thread is queueing up parent models to be received on the other end faster than they can be pulled out
     let receive_mapper = mapper.clone();
     let receive_task = tokio::task::spawn(async {
         let mapper = receive_mapper;
         for index in 0..10 {
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(150)).await;
             println!("receiving {}...", index);
-            mapper.lock().await.push(Arc::new(Mutex::new(GetParentByIdInput::new(index)))).await;
+            mapper.push(Arc::new(Mutex::new(GetParentByIdInput::new(index)))).await;
             println!("received {}.", index);
         }
     });
@@ -121,13 +121,13 @@ async fn main() {
     let send_mapper = mapper.clone();
     let send_task = tokio::task::spawn(async {
         let mapper = send_mapper;
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(175)).await;
         for _ in 0..10 {
             println!("processing...");
-            mapper.lock().await.process().await;
+            mapper.process().await;
             println!("processed.");
             println!("popping...");
-            let model = mapper.lock().await.try_pop().await;
+            let model = mapper.try_pop().await;
             match model {
                 Some(model) => {
                     let locked_model = model.lock().await;

@@ -20,7 +20,7 @@ Each type of processing unit (created by the `chain_link!`, `chain!`, and `split
 
 ### Mapper
 
-This example demonstrates how a `ChainLink` may exist to pull records from a database and map them to a model. The pushing of IDs is designed to push faster into the `ChainLink` than the pops occur to pull out the data. The database purposely takes longer to demonstrate how the system behaves.
+This example demonstrates how a `ChainLink` may exist to pull records from a database and map them to a model. The pushing of IDs is designed to push faster into the `ChainLink` than the pops occur to pull out the data. The database purposely takes longer to demonstrate how the system behaves asynchronously, pulling from the database while accepting in new IDs.
 
 ### ETL
 
@@ -30,6 +30,10 @@ This example also covers basic usage of the `nom` crate and how the initializer 
 ### ETL Split
 
 This example is exactly like the ETL example, only that it also demonstrates splitting the final output between two databases using the `split_merge!` macro.
+
+### Madlib
+
+This example demonstrates that an earlier `ChainLink` may take in a group of input that will need to be parsed individually in a later `ChainLink`. In other words, aggregation upstream can be merged together downstream.
 
 ## Inspiration
 
