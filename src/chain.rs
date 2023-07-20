@@ -323,18 +323,23 @@ macro_rules! split_merge {
                     else {
                         $(
                             {
-                                println!("{}: checking field to start thread...", chrono::Utc::now().timestamp());
                                 let mut [<locked_is_running_ $($field)*>] = self.[<is_running_ $($field)*>].lock().await;
                                 if !*[<locked_is_running_ $($field)*>] {
                                     *[<locked_is_running_ $($field)*>] = true;
                                     let [<$($field)*>] = self.[<$($field)*>].clone();
                                     let [<is_running_ $($field)*>] = self.[<is_running_ $($field)*>].clone();
-                                    println!("{}: spawning thread...", chrono::Utc::now().timestamp());
-                                    tokio::spawn(async move {
-                                        [<$($field)*>].process().await;
-                                        *[<is_running_ $($field)*>].lock().await = false;
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+                                            .worker_threads(4)
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            [<$($field)*>].process().await;
+                                            *[<is_running_ $($field)*>].lock().await = false;
+                                        });
                                     });
-                                    println!("{}: spawned thread.", chrono::Utc::now().timestamp());
                                 }
                             }
                         )*
