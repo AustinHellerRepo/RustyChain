@@ -7,6 +7,8 @@ pub trait ChainLink {
 
     async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
     async fn push_raw(&self, input: Self::TInput);
+    async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
+    async fn push_raw_if_empty(&self, input: Self::TInput);
     async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<Self::TOutput>>>;
     async fn process(&self) -> bool;
     //async fn chain(self, other: impl ChainLink) -> ChainLink;
@@ -18,8 +20,8 @@ macro_rules! chain_link {
         paste::paste! {
             pub struct $type {
                 initializer: std::sync::Arc<tokio::sync::Mutex<[<$type Initializer>]>>,
-                input_queue: deadqueue::unlimited::Queue<std::sync::Arc<tokio::sync::Mutex<$receive_type>>>,
-                output_queue: deadqueue::unlimited::Queue<std::sync::Arc<tokio::sync::Mutex<$output_type>>>
+                input_queue: $crate::queue::Queue<std::sync::Arc<tokio::sync::Mutex<$receive_type>>>,
+                output_queue: $crate::queue::Queue<std::sync::Arc<tokio::sync::Mutex<$output_type>>>
             }
 
             pub struct [<$type Initializer>] {
@@ -32,8 +34,8 @@ macro_rules! chain_link {
                 pub fn new(initializer: [<$type Initializer>]) -> Self {
                     $type {
                         initializer: std::sync::Arc::new(tokio::sync::Mutex::new(initializer)),
-                        input_queue: deadqueue::unlimited::Queue::<std::sync::Arc<tokio::sync::Mutex<$receive_type>>>::default(),
-                        output_queue: deadqueue::unlimited::Queue::<std::sync::Arc<tokio::sync::Mutex<$output_type>>>::default()
+                        input_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::Mutex<$receive_type>>>::default(),
+                        output_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::Mutex<$output_type>>>::default()
                     }
                 }
             }
@@ -50,13 +52,19 @@ macro_rules! chain_link {
                 type TOutput = $output_type;
 
                 async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<$receive_type>>) -> () {
-                    self.input_queue.push(input);
+                    self.input_queue.push(input).await;
                 }
                 async fn push_raw(&self, input: $receive_type) -> () {
                     self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
                 }
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::Mutex<$receive_type>>) -> () {
+                    self.input_queue.push_if_empty(input).await;
+                }
+                async fn push_raw_if_empty(&self, input: $receive_type) -> () {
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                }
                 async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$output_type>>> {
-                    self.output_queue.try_pop().map(|element| {
+                    self.output_queue.try_pop().await.map(|element| {
                         element.into()
                     })
                 }
@@ -69,17 +77,17 @@ macro_rules! chain_link {
                         initializer: self.initializer.clone()
                     };
                     if let Some(output) = get_map_block_result($receive_name).await {
-                        self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output)));
+                        self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output))).await;
                         return true;
                     }
-                    else if let Some($receive_name) = self.input_queue.try_pop() {
+                    else if let Some($receive_name) = self.input_queue.try_pop().await {
                         let mut locked_receive_name = $receive_name.lock().await;
                         let $receive_name = [<_ $type Input>] {
                             received: Some(&mut locked_receive_name),
                             initializer: self.initializer.clone()
                         };
                         if let Some(output) = get_map_block_result($receive_name).await {
-                            self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output)));
+                            self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output))).await;
                             return true;
                         }
                     } 
@@ -163,6 +171,12 @@ macro_rules! chain {
                 async fn push_raw(&self, input: $from) -> () {
                     self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
                 }
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                    self.$first_name.push_if_empty(input).await
+                }
+                async fn push_raw_if_empty(&self, input: $from) -> () {
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                }
                 async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
                     self.$last_name.try_pop().await
                 }
@@ -193,7 +207,7 @@ macro_rules! chain {
 
 #[macro_export]
 macro_rules! split_merge {
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), fcfs) => {
+    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*)) => {
         split_merge!(middle $name, $from, $to, false, () (0) () (x) () (), $($destination),*);
     };
     ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), join) => {
@@ -213,9 +227,12 @@ macro_rules! split_merge {
         paste::paste! {
             pub struct $name {
                 $(
-                    [<$($field)*>]: $field_type,
+                    [<$($field)*>]: std::sync::Arc<$field_type>,
                 )*
-                next_send_field_index: tokio::sync::Mutex<usize>
+                next_send_field_index: tokio::sync::Mutex<usize>,
+                $(
+                    [<is_running_ $($field)*>]: std::sync::Arc<tokio::sync::Mutex<bool>>,
+                )*
             }
 
             pub struct [<$name Initializer>] {
@@ -228,9 +245,12 @@ macro_rules! split_merge {
                 pub fn new(initializer: [<$name Initializer>]) -> Self {
                     $name {
                         $(
-                            [<$($field)*>]: $field_type::new(initializer.[<$($field)* _initializer>]),
+                            [<$($field)*>]: std::sync::Arc::new($field_type::new(initializer.[<$($field)* _initializer>])),
                         )*
-                        next_send_field_index: tokio::sync::Mutex::new(0)
+                        next_send_field_index: tokio::sync::Mutex::new(0),
+                        $(
+                            [<is_running_ $($field)*>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
+                        )*
                     }
                 }
             }
@@ -245,6 +265,12 @@ macro_rules! split_merge {
                 }
                 async fn push_raw(&self, input: $from) -> () {
                     self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                }
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                    futures::join!($(self.[<$($field)*>].push_if_empty(input.clone())),*);
+                }
+                async fn push_raw_if_empty(&self, input: $from) -> () {
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
                 }
                 async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
 
@@ -289,8 +315,6 @@ macro_rules! split_merge {
                     return None;
                 }
                 async fn process(&self) -> bool {
-                    use futures::future::FutureExt;
-
                     if $is_join {
                         let bool_tuple = futures::join!($(self.[<$($field)*>].process()),*);
                         let false_tuple = ($($bool),*);
@@ -298,21 +322,22 @@ macro_rules! split_merge {
                     }
                     else {
                         $(
-                            let mut [<fused_ $($field)*>] = self.[<$($field)*>].process().fuse();
-                        )*
-                        let mut futures_completed_count = 0;
-                        while futures_completed_count != ($count) {
-                            let is_processed = futures::select! {
-                                $(
-                                    [<$($field)*>] = [<fused_ $($field)*>] => [<$($field)*>],
-                                )*
-                            };
-                            futures_completed_count += 1;
-                            if is_processed {
-                                println!("split success");
-                                return true;
+                            {
+                                println!("{}: checking field to start thread...", chrono::Utc::now().timestamp());
+                                let mut [<locked_is_running_ $($field)*>] = self.[<is_running_ $($field)*>].lock().await;
+                                if !*[<locked_is_running_ $($field)*>] {
+                                    *[<locked_is_running_ $($field)*>] = true;
+                                    let [<$($field)*>] = self.[<$($field)*>].clone();
+                                    let [<is_running_ $($field)*>] = self.[<is_running_ $($field)*>].clone();
+                                    println!("{}: spawning thread...", chrono::Utc::now().timestamp());
+                                    tokio::spawn(async move {
+                                        [<$($field)*>].process().await;
+                                        *[<is_running_ $($field)*>].lock().await = false;
+                                    });
+                                    println!("{}: spawned thread.", chrono::Utc::now().timestamp());
+                                }
                             }
-                        }
+                        )*
                         return false;
                     }
                 }

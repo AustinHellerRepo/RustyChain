@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use robotics::{automated_robot::{AutomatedRobot, AutomatedRobotInitializer}, sensory_split::SensorySplitInitializer, camera_sensor::CameraSensorInitializer, sensor_processor::SensorProcessorInitializer, robot_interface::RobotInterfaceInitializer, dependency::{Robot, Controller, Camera}, controller_sensor::ControllerSensorInitializer};
 use rusty_chain::chain::ChainLink;
 
@@ -117,16 +119,16 @@ mod robotics {
                 }
             }
             pub fn shutdown(&mut self) {
-                println!("Robot: shutting down...");
+                println!("{}: Robot: shutting down...", chrono::Utc::now().timestamp());
                 self.is_active = true;
             }
             pub fn startup(&mut self) {
-                println!("Robot: starting up...");
+                println!("{}: Robot: starting up...", chrono::Utc::now().timestamp());
                 self.is_active = false;
             }
             pub fn move_left(&mut self) {
                 if self.is_active {
-                    println!("Robot: moving left...");
+                    println!("{}: Robot: moving left...", chrono::Utc::now().timestamp());
                     // turn left and move straight
                     match self.facing {
                         Facing::North => {
@@ -150,7 +152,7 @@ mod robotics {
             }
             pub fn move_right(&mut self) {
                 if self.is_active {
-                    println!("Robot: moving right...");
+                    println!("{}: Robot: moving right...", chrono::Utc::now().timestamp());
                     // turn right and move forward
                     match self.facing {
                         Facing::North => {
@@ -174,7 +176,7 @@ mod robotics {
             }
             pub fn move_straight(&mut self) {
                 if self.is_active {
-                    println!("Robot: moving straight...");
+                    println!("{}: Robot: moving straight...", chrono::Utc::now().timestamp());
                     // move forward
                     match self.facing {
                         Facing::North => {
@@ -203,7 +205,7 @@ mod robotics {
         chain_link!(CameraSensor => (camera: Camera), input: () => SensorData, {
             match input.received {
                 Some(_) => {
-                    println!("CameraSensor");
+                    println!("{}: CameraSensor", chrono::Utc::now().timestamp());
                     let direction = input.initializer.lock().await.camera.read_instruction_under_robot().await;
                     Some(SensorData::Camera(direction))
                 },
@@ -219,7 +221,7 @@ mod robotics {
         chain_link!(ControllerSensor => (controller: Controller), input: () => SensorData, {
             match input.received {
                 Some(_) => {
-                    println!("ControllerSensor");
+                    println!("{}: ControllerSensor", chrono::Utc::now().timestamp());
                     if let Some(key_press) = input.initializer.lock().await.controller.read_last_keypress().await {
                         Some(SensorData::Controller(key_press))
                     }
@@ -240,7 +242,7 @@ mod robotics {
         chain_link!(SensorProcessor, input: SensorData => RobotAction, {
             match input.received {
                 Some(sensor_data) => {
-                    println!("SensorProcessor");
+                    println!("{}: SensorProcessor", chrono::Utc::now().timestamp());
                     match sensor_data {
                         SensorData::Camera(direction) => {
                             match direction {
@@ -279,7 +281,7 @@ mod robotics {
         chain_link!(RobotInterface => (robot: Robot), input: RobotAction => bool, {
             match input.received {
                 Some(robot_action) => {
-                    println!("RobotInterface");
+                    println!("{}: RobotInterface", chrono::Utc::now().timestamp());
                     let robot = &mut input.initializer.lock().await.robot;
                     match robot_action {
                         RobotAction::MoveLeft => {
@@ -309,7 +311,7 @@ mod robotics {
         use rusty_chain::split_merge;
         use super::{model::SensorData, controller_sensor::{ControllerSensor, ControllerSensorInitializer}, camera_sensor::{CameraSensor, CameraSensorInitializer}};
 
-        split_merge!(SensorySplit, () => SensorData, (CameraSensor, ControllerSensor), fcfs);
+        split_merge!(SensorySplit, () => SensorData, (CameraSensor, ControllerSensor));
     }
 
     pub mod automated_robot {
@@ -320,27 +322,38 @@ mod robotics {
     }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
 
-    let automated_robot = AutomatedRobot::new(AutomatedRobotInitializer {
-        x_sensory_split: SensorySplitInitializer {
-            x_camera_sensor_initializer: CameraSensorInitializer {
-                camera: Camera::new()
+    // ensure that tokio will use multiple threads, permitting the split_merge async to run the ControllerSensor while waiting for the CameraSensor
+    let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_time()
+        .build()
+        .unwrap();
+
+    tokio_runtime.block_on(async {
+
+        let automated_robot = AutomatedRobot::new(AutomatedRobotInitializer {
+            x_sensory_split: SensorySplitInitializer {
+                x_camera_sensor_initializer: CameraSensorInitializer {
+                    camera: Camera::new()
+                },
+                xx_controller_sensor_initializer: ControllerSensorInitializer {
+                    controller: Controller::new()
+                }
             },
-            xx_controller_sensor_initializer: ControllerSensorInitializer {
-                controller: Controller::new()
+            xx_sensor_processor: SensorProcessorInitializer { },
+            xxx_robot_interface: RobotInterfaceInitializer {
+                robot: Robot::new()
             }
-        },
-        xx_sensor_processor: SensorProcessorInitializer { },
-        xxx_robot_interface: RobotInterfaceInitializer {
-            robot: Robot::new()
+        });
+
+        for _ in 0..30 {
+            println!("{}: loop start", chrono::Utc::now().timestamp());
+            automated_robot.push_raw_if_empty(()).await;
+            automated_robot.process().await;
+            automated_robot.try_pop().await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
     });
-
-    for _ in 0..3 {
-        automated_robot.push_raw(()).await;
-        automated_robot.process().await;
-        automated_robot.try_pop().await;
-    }
 }
