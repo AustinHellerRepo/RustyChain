@@ -1,5 +1,4 @@
 use std::time::Duration;
-
 use robotics::{automated_robot::{AutomatedRobot, AutomatedRobotInitializer}, sensory_split::SensorySplitInitializer, camera_sensor::CameraSensorInitializer, sensor_processor::SensorProcessorInitializer, robot_interface::RobotInterfaceInitializer, dependency::{Robot, Controller, Camera}, controller_sensor::ControllerSensorInitializer};
 use rusty_chain::chain::ChainLink;
 
