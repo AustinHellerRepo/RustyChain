@@ -104,6 +104,8 @@ mod etl {
 
     // example filename: "database.rs"
     pub mod database {
+        use std::time::Duration;
+
         use rusty_chain::chain_link;
         use super::models::Customer;
 
@@ -112,7 +114,14 @@ mod etl {
         }
 
         impl DatabaseRepository {
-            pub fn insert_customer(&self, customer: &Customer) {
+            pub async fn insert_customer(&self, customer: &Customer) {
+                // make the mirror database take a little longer than the primary database
+                if self.name.as_str() == "Primary" {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                else {
+                    tokio::time::sleep(Duration::from_millis(300)).await;
+                }
                 // inserts into database
                 println!("DatabaseRepository: inserted customer {} with age {} into datababase {}", customer.customer_name, customer.age, self.name);
             }
@@ -121,7 +130,7 @@ mod etl {
         chain_link!(InsertCustomerIntoDatabase => (repository: DatabaseRepository), input: Customer => bool, {
             match input.received {
                 Some(received) => {
-                    input.initializer.lock().await.repository.insert_customer(&*received);
+                    input.initializer.lock().await.repository.insert_customer(&*received).await;
                     Some(true)
                 },
                 None => None
@@ -133,7 +142,7 @@ mod etl {
         use rusty_chain::split_merge;
         use super::{models::Customer, database::{InsertCustomerIntoDatabase, InsertCustomerIntoDatabaseInitializer}};
 
-        split_merge!(SeparateDatabaseSplitMerge, Customer => bool, (InsertCustomerIntoDatabase, InsertCustomerIntoDatabase));
+        split_merge!(SeparateDatabaseSplitMerge, Customer => bool, (InsertCustomerIntoDatabase, InsertCustomerIntoDatabase), join);
     }
 
     // example filename: "etl_process.rs"
@@ -159,7 +168,7 @@ async fn main() {
     writeln!(second_file, "Charlie Chucks,43").unwrap();
 
     // setup chain
-    let mut etl_process = EtlProcess::new(EtlProcessInitializer { x_read_from_file: ReadFromFileInitializer { buffer: None }, xx_parse_string_to_customer: ParseStringToCustomerInitializer { }, xxx_separate_database_split_merge: SeparateDatabaseSplitMergeInitializer { x_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Primary")} }, xx_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Mirror") } } } });
+    let etl_process = EtlProcess::new(EtlProcessInitializer { x_read_from_file: ReadFromFileInitializer { buffer: None }, xx_parse_string_to_customer: ParseStringToCustomerInitializer { }, xxx_separate_database_split_merge: SeparateDatabaseSplitMergeInitializer { x_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Primary")} }, xx_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Mirror") } } } });
 
     // pass in files
     fn get_path_as_string(path: &std::path::Path) -> String {
@@ -169,6 +178,7 @@ async fn main() {
     etl_process.push_raw(get_path_as_string(second_file.path())).await;
 
     // run ETL process until completed
+    // this methodology of checking for successful pops only works because the split_merge is joined
     let mut is_successful = true;
     while is_successful {
         etl_process.process().await;

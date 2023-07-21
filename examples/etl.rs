@@ -155,7 +155,7 @@ async fn main() {
     writeln!(second_file, "Charlie Chucks,43").unwrap();
 
     // setup chain
-    let mut etl_process = EtlProcess::new(EtlProcessInitializer {
+    let etl_process = EtlProcess::new(EtlProcessInitializer {
         x_read_from_file: ReadFromFileInitializer {
             buffer: None
         },
