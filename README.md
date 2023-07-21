@@ -35,6 +35,10 @@ This example is exactly like the ETL example, only that it also demonstrates spl
 
 This example demonstrates that an earlier `ChainLink` may take in a group of input that will need to be parsed individually in a later `ChainLink`. In other words, aggregation upstream can be merged together downstream.
 
+### Robotics
+
+This example demonstrates usage of the `split_merge!` macro in a context where we might want one asynchronous process to run alongside another asynchronous process but such that they are not waiting for each other to complete before input is generally processed. Here, we want the controller to quickly be able to shutdown the robot while the camera sensor may take a while to provide data.
+
 ## Inspiration
 
 I have always wanted highly testable code and to work in an environment where the logic of my processes was absolutely dependable.
