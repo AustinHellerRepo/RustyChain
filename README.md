@@ -39,6 +39,10 @@ This example demonstrates that an earlier `ChainLink` may take in a group of inp
 
 This example demonstrates usage of the `split_merge!` macro in a context where we might want one asynchronous process to run alongside another asynchronous process but such that they are not waiting for each other to complete before input is generally processed. Here, we want the controller to quickly be able to shutdown the robot while the camera sensor may take a while to provide data.
 
+### Fibonacci
+
+This example demonstrates how iterative processes can be utilized, especially with regards to mathematical operations.
+
 ## Inspiration
 
 I have always wanted highly testable code and to work in an environment where the logic of my processes was absolutely dependable.
