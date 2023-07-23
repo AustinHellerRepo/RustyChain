@@ -42,7 +42,7 @@ mod test {
     chain_link!(HardCoded => (text: String), input:() => String, {
         match input.received {
             Some(_received) => {
-                Some(input.initializer.lock().await.text.clone())
+                Some(input.initializer.read().await.text.clone())
             },
             None => None
         }
