@@ -19,10 +19,10 @@ mod etl {
                 file.seek(SeekFrom::Start(0)).expect("The file should return to the front.");
                 let mut read_buffer = BufReader::new(file);
                 read_buffer.seek(SeekFrom::Start(0)).expect("The read buffer should return to the front.");
-                let _ = input.initializer.lock().await.buffer.replace(read_buffer);
+                let _ = input.initializer.write().await.buffer.replace(read_buffer);
             }
 
-            let mut locked_initializer = input.initializer.lock().await;
+            let mut locked_initializer = input.initializer.write().await;
             if let Some(buffer) = locked_initializer.buffer.as_mut() {
                 // read the next line from the file
                 let mut output: String = String::default();
@@ -130,7 +130,7 @@ mod etl {
         chain_link!(InsertCustomerIntoDatabase => (repository: DatabaseRepository), input: Customer => bool, {
             match input.received {
                 Some(received) => {
-                    input.initializer.lock().await.repository.insert_customer(&*received).await;
+                    input.initializer.read().await.repository.insert_customer(&*received).await;
                     Some(true)
                 },
                 None => None

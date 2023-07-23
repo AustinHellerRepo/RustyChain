@@ -11,7 +11,6 @@ pub trait ChainLink {
     async fn push_raw_if_empty(&self, input: Self::TInput);
     async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<Self::TOutput>>>;
     async fn process(&self) -> bool;
-    //async fn chain(self, other: impl ChainLink) -> ChainLink;
 }
 
 #[macro_export]
@@ -19,7 +18,7 @@ macro_rules! chain_link {
     ($type:ty => ($($property_name:ident: $property_type:ty),*), $receive_name:ident: $receive_type:ty => $output_type:ty, $map_block:block) => {
         paste::paste! {
             pub struct $type {
-                initializer: std::sync::Arc<tokio::sync::Mutex<[<$type Initializer>]>>,
+                initializer: std::sync::Arc<tokio::sync::RwLock<[<$type Initializer>]>>,
                 input_queue: $crate::queue::Queue<std::sync::Arc<tokio::sync::Mutex<$receive_type>>>,
                 output_queue: $crate::queue::Queue<std::sync::Arc<tokio::sync::Mutex<$output_type>>>
             }
@@ -33,7 +32,7 @@ macro_rules! chain_link {
             impl $type {
                 pub fn new(initializer: [<$type Initializer>]) -> Self {
                     $type {
-                        initializer: std::sync::Arc::new(tokio::sync::Mutex::new(initializer)),
+                        initializer: std::sync::Arc::new(tokio::sync::RwLock::new(initializer)),
                         input_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::Mutex<$receive_type>>>::default(),
                         output_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::Mutex<$output_type>>>::default()
                     }
@@ -43,7 +42,7 @@ macro_rules! chain_link {
             #[allow(dead_code)]
             pub struct [<_ $type Input>]<'a> {
                 received: Option<&'a mut $receive_type>,
-                initializer: std::sync::Arc<tokio::sync::Mutex<[<$type Initializer>]>>
+                initializer: std::sync::Arc<tokio::sync::RwLock<[<$type Initializer>]>>
             }
 
             #[async_trait::async_trait]

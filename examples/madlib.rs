@@ -6,7 +6,6 @@ use rusty_chain::chain::ChainLink;
 
 mod madlib {
     use std::collections::HashMap;
-
     use rand::seq::SliceRandom;
     use rusty_chain::{chain_link, chain};
 
@@ -39,10 +38,10 @@ mod madlib {
         input: Vec<MadlibPart> => ConstructedMadlibPart, {
 
         if let Some(madlib_parts) = input.received {
-            input.initializer.lock().await.madlib_parts.replace(madlib_parts.clone());
+            input.initializer.write().await.madlib_parts.replace(madlib_parts.clone());
         }
 
-        let mut locked_initializer = input.initializer.lock().await;
+        let mut locked_initializer = input.initializer.write().await;
         if let Some(madlib_parts) = locked_initializer.madlib_parts.as_ref() {
             if locked_initializer.index == madlib_parts.len() {
                 None
@@ -76,12 +75,12 @@ mod madlib {
             Some(constructed_madlib_part) => {
                 match constructed_madlib_part {
                     ConstructedMadlibPart::End => {
-                        let output = Some(input.initializer.lock().await.buffer.join(" "));
-                        input.initializer.lock().await.buffer.clear();
+                        let output = Some(input.initializer.read().await.buffer.join(" "));
+                        input.initializer.write().await.buffer.clear();
                         output
                     },
                     ConstructedMadlibPart::Word(word) => {
-                        input.initializer.lock().await.buffer.push(word.clone());
+                        input.initializer.write().await.buffer.push(word.clone());
                         None
                     }
                 }

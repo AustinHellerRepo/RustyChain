@@ -211,7 +211,7 @@ mod robotics {
             match input.received {
                 Some(_) => {
                     println!("{}: CameraSensor", chrono::Utc::now().timestamp());
-                    let direction = input.initializer.lock().await.camera.read_instruction_under_robot().await;
+                    let direction = input.initializer.read().await.camera.read_instruction_under_robot().await;
                     Some(SensorData::Camera(direction))
                 },
                 None => None
@@ -227,7 +227,7 @@ mod robotics {
             match input.received {
                 Some(_) => {
                     println!("{}: ControllerSensor", chrono::Utc::now().timestamp());
-                    if let Some(key_press) = input.initializer.lock().await.controller.read_last_keypress().await {
+                    if let Some(key_press) = input.initializer.write().await.controller.read_last_keypress().await {
                         Some(SensorData::Controller(key_press))
                     }
                     else {
@@ -287,7 +287,7 @@ mod robotics {
             match input.received {
                 Some(robot_action) => {
                     println!("{}: RobotInterface", chrono::Utc::now().timestamp());
-                    let robot = &mut input.initializer.lock().await.robot;
+                    let robot = &mut input.initializer.write().await.robot;
                     match robot_action {
                         RobotAction::MoveLeft => {
                             robot.move_left();

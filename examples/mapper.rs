@@ -71,7 +71,7 @@ mod mapper_example {
         match input.received {
             Some(parent_id_container) => {
                 // the connection string was part of the initializer, so we can create our database connection on demand
-                let database_connection = DatabaseConnection::new(input.initializer.lock().await.connection_string.clone());
+                let database_connection = DatabaseConnection::new(input.initializer.read().await.connection_string.clone());
                 let parent_id = parent_id_container.parent_id;
                 let parent_record = database_connection.get_parent_by_parent_id(parent_id).await;
                 let child_records = database_connection.get_child_records_by_parent_id(parent_id).await;
