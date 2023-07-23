@@ -11,7 +11,7 @@ mod fibonacci {
 
         chain_link!(FibonacciSequence, input: (u32, u32) => (u32, u32), {
             if let Some(fib_tuple) = input.received {
-                let (a, b) = fib_tuple;
+                let (a, b) = &*fib_tuple.read().await;
                 Some((*b, *a + *b))
             }
             else {
@@ -35,7 +35,7 @@ async fn main() {
 
         // pull out the next set of numbers
         if let Some(numbers) = fibonacci_sequence.try_pop().await {
-            let locked_numbers = numbers.lock().await;
+            let locked_numbers = numbers.read().await;
             let (a, b) = (locked_numbers.0, locked_numbers.1);
             
             if i == 0 {

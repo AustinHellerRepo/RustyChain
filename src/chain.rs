@@ -5,11 +5,11 @@ pub trait ChainLink {
     type TInput;
     type TOutput;
 
-    async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
+    async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<Self::TInput>>);
     async fn push_raw(&self, input: Self::TInput);
-    async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::Mutex<Self::TInput>>);
+    async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<Self::TInput>>);
     async fn push_raw_if_empty(&self, input: Self::TInput);
-    async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<Self::TOutput>>>;
+    async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<Self::TOutput>>>;
     async fn process(&self) -> bool;
 }
 
@@ -19,8 +19,8 @@ macro_rules! chain_link {
         paste::paste! {
             pub struct $type {
                 initializer: std::sync::Arc<tokio::sync::RwLock<[<$type Initializer>]>>,
-                input_queue: $crate::queue::Queue<std::sync::Arc<tokio::sync::Mutex<$receive_type>>>,
-                output_queue: $crate::queue::Queue<std::sync::Arc<tokio::sync::Mutex<$output_type>>>
+                input_queue: $crate::queue::Queue<std::sync::Arc<tokio::sync::RwLock<$receive_type>>>,
+                output_queue: $crate::queue::Queue<std::sync::Arc<tokio::sync::RwLock<$output_type>>>
             }
 
             pub struct [<$type Initializer>] {
@@ -33,15 +33,15 @@ macro_rules! chain_link {
                 pub fn new(initializer: [<$type Initializer>]) -> Self {
                     $type {
                         initializer: std::sync::Arc::new(tokio::sync::RwLock::new(initializer)),
-                        input_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::Mutex<$receive_type>>>::default(),
-                        output_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::Mutex<$output_type>>>::default()
+                        input_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::RwLock<$receive_type>>>::default(),
+                        output_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::RwLock<$output_type>>>::default()
                     }
                 }
             }
 
             #[allow(dead_code)]
-            pub struct [<_ $type Input>]<'a> {
-                received: Option<&'a mut $receive_type>,
+            pub struct [<_ $type Input>] {
+                received: Option<std::sync::Arc<tokio::sync::RwLock<$receive_type>>>,
                 initializer: std::sync::Arc<tokio::sync::RwLock<[<$type Initializer>]>>
             }
 
@@ -50,25 +50,25 @@ macro_rules! chain_link {
                 type TInput = $receive_type;
                 type TOutput = $output_type;
 
-                async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<$receive_type>>) -> () {
+                async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<$receive_type>>) -> () {
                     self.input_queue.push(input).await;
                 }
                 async fn push_raw(&self, input: $receive_type) -> () {
-                    self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                    self.push(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
                 }
-                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::Mutex<$receive_type>>) -> () {
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<$receive_type>>) -> () {
                     self.input_queue.push_if_empty(input).await;
                 }
                 async fn push_raw_if_empty(&self, input: $receive_type) -> () {
-                    self.push_if_empty(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
                 }
-                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$output_type>>> {
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<$output_type>>> {
                     self.output_queue.try_pop().await.map(|element| {
                         element.into()
                     })
                 }
                 async fn process(&self) -> bool {
-                    async fn get_map_block_result($receive_name: [<_ $type Input>]<'_>) -> Option<$output_type> {
+                    async fn get_map_block_result($receive_name: [<_ $type Input>]) -> Option<$output_type> {
                         $map_block
                     }
                     let $receive_name = [<_ $type Input>] {
@@ -76,17 +76,16 @@ macro_rules! chain_link {
                         initializer: self.initializer.clone()
                     };
                     if let Some(output) = get_map_block_result($receive_name).await {
-                        self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output))).await;
+                        self.output_queue.push(std::sync::Arc::new(tokio::sync::RwLock::new(output))).await;
                         return true;
                     }
                     else if let Some($receive_name) = self.input_queue.try_pop().await {
-                        let mut locked_receive_name = $receive_name.lock().await;
                         let $receive_name = [<_ $type Input>] {
-                            received: Some(&mut locked_receive_name),
+                            received: Some($receive_name),
                             initializer: self.initializer.clone()
                         };
                         if let Some(output) = get_map_block_result($receive_name).await {
-                            self.output_queue.push(std::sync::Arc::new(tokio::sync::Mutex::new(output))).await;
+                            self.output_queue.push(std::sync::Arc::new(tokio::sync::RwLock::new(output))).await;
                             return true;
                         }
                     } 
@@ -164,19 +163,19 @@ macro_rules! chain {
                 type TInput = $from;
                 type TOutput = $to;
 
-                async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
                     self.$first_name.push(input).await
                 }
                 async fn push_raw(&self, input: $from) -> () {
-                    self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                    self.push(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
                 }
-                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
                     self.$first_name.push_if_empty(input).await
                 }
                 async fn push_raw_if_empty(&self, input: $from) -> () {
-                    self.push_if_empty(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
                 }
-                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<$to>>> {
                     self.$last_name.try_pop().await
                 }
                 async fn process(&self) -> bool {
@@ -259,19 +258,19 @@ macro_rules! split_merge {
                 type TInput = $from;
                 type TOutput = $to;
 
-                async fn push(&self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
                     futures::join!($(self.[<$($field)*>].push(input.clone())),*);
                 }
                 async fn push_raw(&self, input: $from) -> () {
-                    self.push(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                    self.push(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
                 }
-                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::Mutex<$from>>) -> () {
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
                     futures::join!($(self.[<$($field)*>].push_if_empty(input.clone())),*);
                 }
                 async fn push_raw_if_empty(&self, input: $from) -> () {
-                    self.push_if_empty(std::sync::Arc::new(tokio::sync::Mutex::new(input))).await
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
                 }
-                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::Mutex<$to>>> {
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<$to>>> {
 
                     // loop until we have found `Some` or looped around all internal ChainLink instanes
                     let mut next_send_field_index_lock = self.next_send_field_index.lock().await;

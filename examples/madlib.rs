@@ -38,7 +38,7 @@ mod madlib {
         input: Vec<MadlibPart> => ConstructedMadlibPart, {
 
         if let Some(madlib_parts) = input.received {
-            input.initializer.write().await.madlib_parts.replace(madlib_parts.clone());
+            input.initializer.write().await.madlib_parts.replace(madlib_parts.read().await.clone());
         }
 
         let mut locked_initializer = input.initializer.write().await;
@@ -73,7 +73,7 @@ mod madlib {
     chain_link!(CollectConstructedMadlibParts => ( buffer: Vec<String> ), input: ConstructedMadlibPart => String, {
         match input.received {
             Some(constructed_madlib_part) => {
-                match constructed_madlib_part {
+                match &*constructed_madlib_part.read().await {
                     ConstructedMadlibPart::End => {
                         let output = Some(input.initializer.read().await.buffer.join(" "));
                         input.initializer.write().await.buffer.clear();
@@ -144,5 +144,5 @@ async fn main() {
         .await
         .expect("The internal iteration process should occur since there is active flow between chainlinks.");
 
-    println!("{}", output.lock().await);
+    println!("{}", output.read().await);
 }
