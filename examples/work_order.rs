@@ -5,9 +5,7 @@ mod work_order {
 
     pub mod model {
         use std::fmt::Display;
-
         use dashmap::DashMap;
-
 
         #[derive(PartialEq, Eq, Hash, Clone, Debug)]
         pub enum WorkType {
@@ -109,6 +107,7 @@ mod work_order {
                                 .await
                                 .pop() {
                                 
+                                    // there is a worker available for this customer's work order
                                     Some(EventOutcome::OrderAssignedToWorker(AssignedOrder {
                                         work_type: order.work_type.clone(),
                                         worker: popped_worker.clone(),
@@ -116,6 +115,8 @@ mod work_order {
                                     }))
                             }
                             else {
+
+                                // cache the customer's work for when a worker is available
                                 input.initializer
                                     .read()
                                     .await
@@ -157,6 +158,7 @@ mod work_order {
                                 .await
                                 .pop() {
                                 
+                                    // there is a customer's work order ready for this worker
                                     Some(EventOutcome::OrderAssignedToWorker(AssignedOrder {
                                         work_type: worker_availability.work_type.clone(),
                                         worker: worker_availability.worker.clone(),
@@ -164,6 +166,8 @@ mod work_order {
                                     }))
                             }
                             else {
+
+                                // cache the worker until a customer's work order is processed
                                 input.initializer
                                     .read()
                                     .await
@@ -187,7 +191,6 @@ mod work_order {
 
     pub mod unit_of_work_manager {
         use rusty_chain::chain_link;
-
         use super::model::{EventOutcome, WorkType};
 
         chain_link!(UnitOfWorkManager, input: EventOutcome => bool, {
@@ -216,7 +219,6 @@ mod work_order {
 
     pub mod work_processor {
         use rusty_chain::chain;
-
         use super::{unit_of_work_manager::{UnitOfWorkManager, UnitOfWorkManagerInitializer}, work_assignment_manager::{WorkAssignmentManager, WorkAssignmentManagerInitializer}, model::OrderEvent};
 
         chain!(WorkProcessor, OrderEvent => bool, WorkAssignmentManager => UnitOfWorkManager);
@@ -226,6 +228,8 @@ mod work_order {
 #[tokio::main]
 async fn main() {
     
+    // accept in customer orders and available workers, pairing them up as they become available
+
     let work_processor = WorkProcessor::new(WorkProcessorInitializer {
         x_work_assignment_manager: WorkAssignmentManagerInitializer {
             work_system_cache: WorkSystemCache::new()
@@ -240,6 +244,7 @@ async fn main() {
         }
     })).await;
 
+    // there are no pairs yet
     assert!(!work_processor.process().await);
 
     work_processor.push_raw(OrderEvent::AddWorkerAvailability(WorkerAvailability {
@@ -249,6 +254,7 @@ async fn main() {
         }
     })).await;
 
+    // there are no pairs yet
     assert!(!work_processor.process().await);
 
     work_processor.push_raw(OrderEvent::AddWorkerAvailability(WorkerAvailability {
@@ -258,6 +264,7 @@ async fn main() {
         }
     })).await;
 
+    // a customer needing a call and a worker who can call are now present
     assert!(work_processor.process().await);
 
     work_processor.push_raw(OrderEvent::AddOrder(Order {
@@ -267,5 +274,6 @@ async fn main() {
         }
     })).await;
 
+    // a customer needing their account investigated and a worker who investigates are now present
     assert!(work_processor.process().await);
 }
