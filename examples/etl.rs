@@ -15,7 +15,7 @@ mod etl {
         chain_link!(ReadFromFile => (buffer: Option<BufReader<File>>), input: String => String, {
             if let Some(file_path) = input.received {
                 // store the file buffer in the initializer
-                let mut file = File::open(file_path.clone()).expect("The file should open.");
+                let mut file = File::open(file_path.read().await.clone()).expect("The file should open.");
                 file.seek(SeekFrom::Start(0)).expect("The file should return to the front.");
                 let mut read_buffer = BufReader::new(file);
                 read_buffer.seek(SeekFrom::Start(0)).expect("The read buffer should return to the front.");
@@ -94,7 +94,7 @@ mod etl {
                 Some(received) => {
 
                     // parse the file line using nom
-                    let (_, parsed_customer) = parse_customer(received.as_str()).unwrap();
+                    let (_, parsed_customer) = parse_customer(received.read().await.as_str()).unwrap();
 
                     // return the parsed Customer instance
                     Some(parsed_customer)
@@ -123,7 +123,7 @@ mod etl {
             match input.received {
                 Some(received) => {
                     // when the Customer is supplied, perform the insert into the database
-                    input.initializer.read().await.repository.insert_customer(&*received);
+                    input.initializer.read().await.repository.insert_customer(&*received.read().await);
                     Some(true)
                 },
                 None => None
@@ -178,7 +178,7 @@ async fn main() {
         etl_process.process().await;
         match etl_process.try_pop().await {
             Some(popped_is_successful) => {
-                is_successful = *popped_is_successful.lock().await;
+                is_successful = *popped_is_successful.read().await;
             },
             None => {
                 is_successful = false;

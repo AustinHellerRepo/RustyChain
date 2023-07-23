@@ -1,5 +1,4 @@
 use std::{sync::Arc, time::Duration};
-use tokio::sync::Mutex;
 
 mod mapper_example {
 
@@ -72,7 +71,7 @@ mod mapper_example {
             Some(parent_id_container) => {
                 // the connection string was part of the initializer, so we can create our database connection on demand
                 let database_connection = DatabaseConnection::new(input.initializer.read().await.connection_string.clone());
-                let parent_id = parent_id_container.parent_id;
+                let parent_id = parent_id_container.read().await.parent_id;
                 let parent_record = database_connection.get_parent_by_parent_id(parent_id).await;
                 let child_records = database_connection.get_child_records_by_parent_id(parent_id).await;
 
@@ -112,7 +111,7 @@ async fn main() {
         for index in 0..10 {
             tokio::time::sleep(Duration::from_millis(150)).await;
             println!("receiving {}...", index);
-            mapper.push(Arc::new(Mutex::new(GetParentByIdInput::new(index)))).await;
+            mapper.push_raw(GetParentByIdInput::new(index)).await;
             println!("received {}.", index);
         }
     });
@@ -130,7 +129,7 @@ async fn main() {
             let model = mapper.try_pop().await;
             match model {
                 Some(model) => {
-                    let locked_model = model.lock().await;
+                    let locked_model = model.read().await;
                     println!("popped {:?}", locked_model);
                 },
                 None => {

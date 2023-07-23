@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
-    use std::sync::{Arc};
-    use tokio::sync::Mutex;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
     use crate::chain::ChainLink;
 
     #[derive(Debug, PartialEq)]
@@ -13,7 +13,7 @@ mod test {
     chain_link!(TestChainLink, input:SomeInput => String, {
         match input.received {
             Some(received) => {
-                Some(match *received {
+                Some(match *received.read().await {
                     SomeInput::First => {
                         String::from("first")
                     },
@@ -29,7 +29,7 @@ mod test {
     chain_link!(StringToSomeInput, input:String => SomeInput, {
         match input.received {
             Some(received) => {
-                Some(match received.as_str() {
+                Some(match received.read().await.as_str() {
                     "first" => SomeInput::First,
                     "second" => SomeInput::Second,
                     _ => panic!("Unexpected value")
@@ -59,7 +59,7 @@ mod test {
     chain_link!(StringToInt, input: String => i32, {
         match input.received {
             Some(received) => {
-                Some(if received.as_str() == "test" {
+                Some(if received.read().await.as_str() == "test" {
                     1
                 }
                 else {
@@ -74,7 +74,7 @@ mod test {
     chain_link!(StringPrint, input: String => i32, {
         match input.received {
             Some(received) => {
-                println!("{}", received);
+                println!("{}", received.read().await);
                 Some(0)
             },
             None => {
@@ -89,13 +89,13 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_link_enum_to_string() {
         let test = TestChainLink::new(TestChainLinkInitializer { });
-        let value = Arc::new(Mutex::new(SomeInput::Second));
+        let value = Arc::new(RwLock::new(SomeInput::Second));
         test.push(value).await;
         test.process().await;
         let response = test.try_pop().await;
         match response {
             Some(response) => {
-                assert_eq!("second", response.lock().await.as_str());
+                assert_eq!("second", response.read().await.as_str());
             },
             None => {
                 panic!("Unexpected None response.");
@@ -106,7 +106,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_link_using_initializer() {
         let test = HardCoded::new(HardCodedInitializer { text: String::from("test") });
-        test.push(Arc::new(Mutex::new(()))).await;
+        test.push_raw(()).await;
         test.process().await;
         let response = test.try_pop().await;
         match response {
@@ -122,7 +122,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_enum_to_enum() {
         let chain_test = ChainTest::new(ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } });
-        let value = Arc::new(Mutex::new(SomeInput::Second));
+        let value = Arc::new(RwLock::new(SomeInput::Second));
         chain_test.push(value).await;
         chain_test.process().await;
         let response = chain_test.try_pop().await;
@@ -139,13 +139,13 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_enum_to_string_to_enum() {
         let triple_test = TripleTest::new(TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } });
-        let value = Arc::new(Mutex::new(SomeInput::First));
+        let value = Arc::new(RwLock::new(SomeInput::First));
         triple_test.push(value).await;
         triple_test.process().await;
         let response = triple_test.try_pop().await;
         match response {
             Some(response) => {
-                assert_eq!("first", response.lock().await.as_str());
+                assert_eq!("first", response.read().await.as_str());
             },
             None => {
                 panic!("Unexpected None response.");
@@ -156,13 +156,13 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_to_chain() {
         let test = ChainToChain::new(ChainToChainInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } } });
-        let value = Arc::new(Mutex::new(SomeInput::First));
+        let value = Arc::new(RwLock::new(SomeInput::First));
         test.push(value).await;
         test.process().await;
         let response = test.try_pop().await;
         match response {
             Some(response) => {
-                assert_eq!("first", response.lock().await.as_str());
+                assert_eq!("first", response.read().await.as_str());
             },
             None => {
                 panic!("Unexpected None response.");
@@ -173,7 +173,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_to_chain_to_chain_link() {
         let test = ChainToChainToLink::new(ChainToChainToLinkInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } }, xxx_string_to_some_input: StringToSomeInputInitializer { } });
-        let value = Arc::new(Mutex::new(SomeInput::Second));
+        let value = Arc::new(RwLock::new(SomeInput::Second));
         test.push(value).await;
         test.process().await;
         let response = test.try_pop().await;
@@ -190,7 +190,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn split_to_two_chain_links() {
         let test = SplitMergeTwoChainLinks::new(SplitMergeTwoChainLinksInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } });
-        test.push(Arc::new(Mutex::new(String::from("test")))).await;
+        test.push(Arc::new(RwLock::new(String::from("test")))).await;
         test.process().await;
         let response = test.try_pop().await;
         match response {
@@ -215,7 +215,7 @@ mod test {
         let response = test.try_pop().await;
         match response {
             Some(response) => {
-                panic!("Unexpected Some response with value {}.", response.lock().await);
+                panic!("Unexpected Some response with value {}.", response.read().await);
             },
             None => {
                 // expected path
@@ -226,7 +226,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn split_to_two_chain_links_round_robin_finds_flushed_chainlink() {
         let test = SplitMergeMultiple::new(SplitMergeMultipleInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_split_merge_two_chain_links_initializer: SplitMergeTwoChainLinksInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } }, xxx_string_print_initializer: StringPrintInitializer { } });
-        test.push(Arc::new(Mutex::new(String::from("test")))).await;
+        test.push(Arc::new(RwLock::new(String::from("test")))).await;
         test.process().await;
         let response = test.try_pop().await;
         match response {
@@ -271,7 +271,7 @@ mod test {
         let response = test.try_pop().await;
         match response {
             Some(response) => {
-                panic!("Unexpected Some response with value {}.", response.lock().await);
+                panic!("Unexpected Some response with value {}.", response.read().await);
             },
             None => {
                 // expected path

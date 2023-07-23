@@ -248,7 +248,7 @@ mod robotics {
             match input.received {
                 Some(sensor_data) => {
                     println!("{}: SensorProcessor", chrono::Utc::now().timestamp());
-                    match sensor_data {
+                    match &*sensor_data.read().await {
                         SensorData::Camera(direction) => {
                             match direction {
                                 Direction::Left => {
@@ -288,7 +288,7 @@ mod robotics {
                 Some(robot_action) => {
                     println!("{}: RobotInterface", chrono::Utc::now().timestamp());
                     let robot = &mut input.initializer.write().await.robot;
-                    match robot_action {
+                    match &*robot_action.read().await {
                         RobotAction::MoveLeft => {
                             robot.move_left();
                         },

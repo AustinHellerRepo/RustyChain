@@ -84,7 +84,7 @@ mod work_order {
         chain_link!(WorkAssignmentManager => (work_system_cache: WorkSystemCache), input: OrderEvent => EventOutcome, {
             match input.received {
                 Some(order_event) => {
-                    match order_event {
+                    match &*order_event.read().await {
                         OrderEvent::AddOrder(order) => {
 
                             // ensure that the work system contains the work type
@@ -201,7 +201,7 @@ mod work_order {
         chain_link!(UnitOfWorkManager, input: EventOutcome => bool, {
             match input.received {
                 Some(event_outcome) => {
-                    match event_outcome {
+                    match &*event_outcome.read().await {
                         EventOutcome::OrderAssignedToWorker(assigned_order) => {
                             match assigned_order.work_type {
                                 WorkType::InvestigateAccount => {
