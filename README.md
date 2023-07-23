@@ -43,6 +43,10 @@ This example demonstrates usage of the `split_merge!` macro in a context where w
 
 This example demonstrates how iterative processes can be utilized, especially with regards to mathematical operations.
 
+### Work Order
+
+This example demonstrates a simple order/work management system where customer orders and worker availability is paired up as they are provided. In a true work management system, the cache would exist in a database.
+
 ## Inspiration
 
 I have always wanted highly testable code and to work in an environment where the logic of my processes was absolutely dependable.

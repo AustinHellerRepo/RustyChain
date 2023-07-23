@@ -58,6 +58,8 @@ mod work_order {
             NothingAssigned
         }
 
+        // This contains all of the data pertaining to the work system.
+        // In a true implementation, this struct would interact with a database.
         pub struct WorkSystemCache {
             pub customers_per_work_type: DashMap<WorkType, tokio::sync::Mutex<Vec<Customer>>>,
             pub workers_per_work_type: DashMap<WorkType, tokio::sync::Mutex<Vec<Worker>>>
