@@ -25,8 +25,16 @@ impl<T> Queue<T> {
         }
     }
     pub async fn try_pop(&self) -> Option<T> {
-        let mut locked_items = self.items.lock().await;
-        let popped_item: Option<T> = locked_items.pop();
+        let popped_item: Option<T>;
+        {
+            let mut locked_items = self.items.lock().await;
+            popped_item = if locked_items.len() == 0 {
+                None
+            }
+            else {
+                Some(locked_items.remove(0usize))
+            };
+        }
         return popped_item;
     }
 }
