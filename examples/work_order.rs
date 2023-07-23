@@ -3,6 +3,7 @@ use work_order::{work_assignment_manager::WorkAssignmentManagerInitializer, mode
 
 mod work_order {
 
+    // the shared types between other modules
     pub mod model {
         use std::fmt::Display;
         use dashmap::DashMap;
@@ -77,6 +78,7 @@ mod work_order {
         use crate::work_order::model::{EventOutcome, AssignedOrder};
         use super::model::{WorkSystemCache, OrderEvent};
 
+        // reacts to an order event, potentially assigning a customer's work to a worker
         chain_link!(WorkAssignmentManager => (work_system_cache: WorkSystemCache), input: OrderEvent => EventOutcome, {
             match input.received {
                 Some(order_event) => {
@@ -193,6 +195,7 @@ mod work_order {
         use rusty_chain::chain_link;
         use super::model::{EventOutcome, WorkType};
 
+        // processes the assigned order, if applicable
         chain_link!(UnitOfWorkManager, input: EventOutcome => bool, {
             match input.received {
                 Some(event_outcome) => {
@@ -221,6 +224,7 @@ mod work_order {
         use rusty_chain::chain;
         use super::{unit_of_work_manager::{UnitOfWorkManager, UnitOfWorkManagerInitializer}, work_assignment_manager::{WorkAssignmentManager, WorkAssignmentManagerInitializer}, model::OrderEvent};
 
+        // the chain of processing from an order event to a processed work order
         chain!(WorkProcessor, OrderEvent => bool, WorkAssignmentManager => UnitOfWorkManager);
     }
 }
