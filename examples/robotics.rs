@@ -317,7 +317,8 @@ mod robotics {
         use super::{model::SensorData, controller_sensor::{ControllerSensor, ControllerSensorInitializer}, camera_sensor::{CameraSensor, CameraSensorInitializer}};
 
         // the split_merge is not joined, so this runs each sensor in separate threads
-        split_merge!(SensorySplit, () => SensorData, (CameraSensor, ControllerSensor));
+        // each parallel chainlink will also not run again until a previous instance has completed due to the "unique" keyword used below
+        split_merge!(SensorySplit, () => SensorData, (CameraSensor, ControllerSensor), unique);
     }
 
     pub mod automated_robot {
@@ -339,20 +340,22 @@ fn main() {
 
     tokio_runtime.block_on(async {
 
-        let automated_robot = AutomatedRobot::new(AutomatedRobotInitializer {
-            x_sensory_split: SensorySplitInitializer {
-                x_camera_sensor_initializer: CameraSensorInitializer {
-                    camera: Camera::new()
-                },
-                xx_controller_sensor_initializer: ControllerSensorInitializer {
-                    controller: Controller::new()
+        let automated_robot = AutomatedRobot::new_raw(
+            AutomatedRobotInitializer::new(
+                SensorySplitInitializer::new(
+                    CameraSensorInitializer {
+                        camera: Camera::new()
+                    },
+                    ControllerSensorInitializer {
+                        controller: Controller::new()
+                    }
+                ),
+                SensorProcessorInitializer { },
+                RobotInterfaceInitializer {
+                    robot: Robot::new()
                 }
-            },
-            xx_sensor_processor: SensorProcessorInitializer { },
-            xxx_robot_interface: RobotInterfaceInitializer {
-                robot: Robot::new()
-            }
-        });
+            )
+        ).await;
 
         for _ in 0..30 {
             println!("{}: loop start", chrono::Utc::now().timestamp());

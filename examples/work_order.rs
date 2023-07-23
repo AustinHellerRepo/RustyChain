@@ -236,12 +236,14 @@ async fn main() {
     
     // accept in customer orders and available workers, pairing them up as they become available
 
-    let work_processor = WorkProcessor::new(WorkProcessorInitializer {
-        x_work_assignment_manager: WorkAssignmentManagerInitializer {
-            work_system_cache: WorkSystemCache::new()
-        },
-        xx_unit_of_work_manager: UnitOfWorkManagerInitializer { }
-    });
+    let work_processor = WorkProcessor::new_raw(
+        WorkProcessorInitializer::new(
+            WorkAssignmentManagerInitializer {
+                work_system_cache: WorkSystemCache::new()
+            },
+            UnitOfWorkManagerInitializer { }
+        )
+    ).await;
 
     work_processor.push_raw(OrderEvent::AddOrder(Order {
         work_type: WorkType::CallCustomer,

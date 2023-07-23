@@ -30,12 +30,15 @@ macro_rules! chain_link {
             }
 
             impl $type {
-                pub fn new(initializer: [<$type Initializer>]) -> Self {
+                pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock::<[<$type Initializer>]>>) -> Self {
                     $type {
-                        initializer: std::sync::Arc::new(tokio::sync::RwLock::new(initializer)),
+                        initializer,
                         input_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::RwLock<$receive_type>>>::default(),
                         output_queue: $crate::queue::Queue::<std::sync::Arc<tokio::sync::RwLock<$output_type>>>::default()
                     }
+                }
+                pub async fn new_raw(initializer: [<$type Initializer>]) -> Self {
+                    $type::new(std::sync::Arc::new(tokio::sync::RwLock::new(initializer))).await
                 }
             }
 
@@ -139,22 +142,37 @@ macro_rules! chain {
             }
 
             pub struct [<$name Initializer>] {
-                pub $first_name: [<$first Initializer>],
+                pub $first_name: std::sync::Arc<tokio::sync::RwLock<[<$first Initializer>]>>,
                 $(
-                    pub [<$($field)*>]: [<$field_type Initializer>],
+                    pub [<$($field)*>]: std::sync::Arc<tokio::sync::RwLock<[<$field_type Initializer>]>>,
                 )*
-                pub $last_name: [<$last Initializer>]
+                pub $last_name: std::sync::Arc<tokio::sync::RwLock<[<$last Initializer>]>>
+            }
+
+            impl [<$name Initializer>] {
+                pub fn new($first_name: [<$first Initializer>], $([<$($field)*>]: [<$field_type Initializer>],)* $last_name: [<$last Initializer>]) -> Self {
+                    [<$name Initializer>] {
+                        $first_name: std::sync::Arc::new(tokio::sync::RwLock::new($first_name)),
+                        $(
+                            [<$($field)*>]: std::sync::Arc::new(tokio::sync::RwLock::new([<$($field)*>])),
+                        )*
+                        $last_name: std::sync::Arc::new(tokio::sync::RwLock::new($last_name))
+                    }
+                }
             }
 
             impl $name {
-                pub fn new(initializer: [<$name Initializer>]) -> Self {
+                pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock<[<$name Initializer>]>>) -> Self {
                     $name {
-                        $first_name: $first::new(initializer.$first_name),
+                        $first_name: $first::new(initializer.read().await.$first_name.clone()).await,
                         $(
-                            [<$($field)*>]: $field_type::new(initializer.[<$($field)*>]),
+                            [<$($field)*>]: $field_type::new(initializer.read().await.[<$($field)*>].clone()).await,
                         )*
-                        $last_name: $last::new(initializer.$last_name)
+                        $last_name: $last::new(initializer.read().await.$last_name.clone()).await
                     }
+                }
+                pub async fn new_raw(initializer: [<$name Initializer>]) -> Self {
+                    $name::new(std::sync::Arc::new(tokio::sync::RwLock::new(initializer))).await
                 }
             }
 
@@ -206,22 +224,25 @@ macro_rules! chain {
 #[macro_export]
 macro_rules! split_merge {
     ($name:ty, $from:ty => $to:ty, ($($destination:ty),*)) => {
-        split_merge!(middle $name, $from, $to, false, () (0) () (x) () (), $($destination),*);
+        split_merge!(middle $name, $from, $to, false, false, () (0) () (x) () (), $($destination),*);
     };
     ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), join) => {
-        split_merge!(middle $name, $from, $to, true, () (0) () (x) () (), $($destination),*);
+        split_merge!(middle $name, $from, $to, true, false, () (0) () (x) () (), $($destination),*);
     };
-    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
+    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), unique) => {
+        split_merge!(middle $name, $from, $to, false, true, () (0) () (x) () (), $($destination),*);
+    };
+    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
         paste::paste! {
-            split_merge!(end $name, $from, $to, $is_join, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
+            split_merge!(end $name, $from, $to, $is_join, $is_unique, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
         }
     };
-    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
+    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
         paste::paste! {
-            split_merge!(middle $name, $from, $to, $is_join, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
+            split_merge!(middle $name, $from, $to, $is_join, $is_unique, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
         }
     };
-    (end $name:ident, $from:ty, $to:ty, $is_join:expr, ($([$bool:tt])*) ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
+    (end $name:ident, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($([$bool:tt])*) ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
             pub struct $name {
                 $(
@@ -235,21 +256,34 @@ macro_rules! split_merge {
 
             pub struct [<$name Initializer>] {
                 $(
-                    pub [<$($field)* _initializer>]: [<$field_type Initializer>],
+                    pub [<$($field)* _initializer>]: std::sync::Arc<tokio::sync::RwLock<[<$field_type Initializer>]>>,
                 )*
             }
 
+            impl [<$name Initializer>] {
+                pub fn new($([<$($field)* _initializer>]: [<$field_type Initializer>],)*) -> Self {
+                    [<$name Initializer>] {
+                        $(
+                            [<$($field)* _initializer>]: std::sync::Arc::new(tokio::sync::RwLock::new([<$($field)* _initializer>])),
+                        )*
+                    }
+                }
+            }
+
             impl $name {
-                pub fn new(initializer: [<$name Initializer>]) -> Self {
+                pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock<[<$name Initializer>]>>) -> Self {
                     $name {
                         $(
-                            [<$($field)*>]: std::sync::Arc::new($field_type::new(initializer.[<$($field)* _initializer>])),
+                            [<$($field)*>]: std::sync::Arc::new($field_type::new(initializer.read().await.[<$($field)* _initializer>].clone()).await),
                         )*
                         next_send_field_index: tokio::sync::Mutex::new(0),
                         $(
                             [<is_running_ $($field)*>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
                         )*
                     }
+                }
+                pub async fn new_raw(initializer: [<$name Initializer>]) -> Self {
+                    $name::new(std::sync::Arc::new(tokio::sync::RwLock::new(initializer))).await
                 }
             }
 
@@ -275,7 +309,7 @@ macro_rules! split_merge {
                     // loop until we have found `Some` or looped around all internal ChainLink instanes
                     let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
                     let mut send_attempts_count: usize = 0;
-                    while send_attempts_count < $count {
+                    while send_attempts_count < ($count) {
 
                         // get the next field index to check
                         let next_send_field_index: usize;
@@ -318,7 +352,7 @@ macro_rules! split_merge {
                         let false_tuple = ($($bool),*);
                         return bool_tuple != false_tuple;
                     }
-                    else {
+                    else if $is_unique {
                         $(
                             {
                                 let mut [<locked_is_running_ $($field)*>] = self.[<is_running_ $($field)*>].lock().await;
@@ -342,8 +376,193 @@ macro_rules! split_merge {
                         )*
                         return false;
                     }
+                    else {
+                        $(
+                            {
+                                let [<$($field)*>] = self.[<$($field)*>].clone();
+                                std::thread::spawn(move || {
+                                    let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                        .enable_time()
+                                        .build()
+                                        .unwrap();
+
+                                    tokio_runtime.block_on(async {
+                                        [<$($field)*>].process().await;
+                                    });
+                                });
+                            }
+                        )*
+                        return false;
+                    }
                 }
             }
         }
     }
+}
+
+#[macro_export]
+macro_rules! duplicate {
+    ($name:ty, $from:ty => $to:ty, $duplicate:ty) => {
+        duplicate!(end $name, $from => $to, $duplicate, false, false)
+    };
+    ($name:ty, $from:ty => $to:ty, $duplicate:ty, join) => {
+        duplicate!(end $name, $from => $to, $duplicate, true, false)
+    };
+    ($name:ty, $from:ty => $to:ty, $duplicate:ty, unique) => {
+        duplicate!(end $name, $from => $to, $duplicate, false, true)
+    };
+    (end $name:ty, $from:ty => $to:ty, $duplicate:ty, $is_join:expr, $is_unique:expr) => {
+        paste::paste! {
+            pub struct $name {
+                next_send_field_index: tokio::sync::Mutex<usize>,
+                inner_chainlinks: std::vec::Vec<std::sync::Arc<$duplicate>>,
+                is_running_inner_chainlinks: std::vec::Vec<std::sync::Arc<tokio::sync::Mutex<bool>>>
+            }
+
+            pub struct [<$name Initializer>] {
+                count: u32,
+                inner_initializer: std::sync::Arc<tokio::sync::RwLock<[<$duplicate Initializer>]>>
+            }
+
+            impl [<$name Initializer>] {
+                pub fn new(count: u32, initializer: [<$duplicate Initializer>]) -> Self {
+                    [<$name Initializer>] {
+                        count,
+                        inner_initializer: std::sync::Arc::new(tokio::sync::RwLock::new(initializer))
+                    }
+                }
+            }
+
+            impl $name {
+                pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock<[<$name Initializer>]>>) -> Self {
+                    let mut inner_chainlinks = vec![];
+                    let mut is_running_inner_chainlinks = vec![];
+                    for _ in 0..(initializer.read().await.count) {
+                        inner_chainlinks.push(std::sync::Arc::new($duplicate::new(initializer.read().await.inner_initializer.clone()).await));
+                        is_running_inner_chainlinks.push(std::sync::Arc::new(tokio::sync::Mutex::new(false)));
+                    }
+                    Self {
+                        next_send_field_index: tokio::sync::Mutex::new(0),
+                        inner_chainlinks,
+                        is_running_inner_chainlinks
+                    }
+                }
+                pub async fn new_raw(initializer: [<$name Initializer>]) -> Self {
+                    $name::new(std::sync::Arc::new(tokio::sync::RwLock::new(initializer))).await
+                }
+            }
+
+            #[async_trait::async_trait]
+            impl $crate::chain::ChainLink for $name {
+                type TInput = $from;
+                type TOutput = $to;
+
+                async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
+                    for chainlink in self.inner_chainlinks.iter() {
+                        $crate::chain::ChainLink::push(chainlink.as_ref(), input.clone()).await;
+                        //chainlink.push(input.clone()).await;
+                    }
+                }
+                async fn push_raw(&self, input: $from) -> () {
+                    self.push(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
+                }
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
+                    for chainlink in self.inner_chainlinks.iter() {
+                        $crate::chain::ChainLink::push_if_empty(chainlink.as_ref(), input.clone()).await;
+                    }
+                }
+                async fn push_raw_if_empty(&self, input: $from) -> () {
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
+                }
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<$to>>> {
+
+                    // loop until we have found `Some` or looped around all internal ChainLink in
+                    let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
+                    let mut send_attempts_count: usize = 0;
+                    while send_attempts_count < self.inner_chainlinks.len() {
+
+                        // get the next field index to check
+                        let next_send_field_index: usize;
+                        next_send_field_index = *next_send_field_index_lock;
+                        if next_send_field_index + 1 == self.inner_chainlinks.len() {
+                            *next_send_field_index_lock = 0;
+                        }
+                        else {
+                            *next_send_field_index_lock = next_send_field_index + 1;
+                        }
+
+                        // get the output for the current field index
+                        let output = self.inner_chainlinks[next_send_field_index].try_pop().await;
+
+                        // return the output if `Some`, else try to loop again
+                        if output.is_some() {
+                            return output;
+                        }
+
+                        send_attempts_count += 1;
+                    }
+
+                    // if we've exhausted all internal `ChainLink` instances, return None
+                    return None;
+                }
+                async fn process(&self) -> bool {
+                    if $is_join {
+                        let mut future_collection = vec![];
+                        for chainlink in self.inner_chainlinks.iter() {
+                            future_collection.push(chainlink.process());
+                        }
+                        let outcome = futures::future::join_all(future_collection).await;
+                        for index in 0..self.inner_chainlinks.len() {
+                            let indexed_bool_tuple: bool = *outcome.get(index).expect(&format!("The tuple index {} should exist within the futures::join! of the chainlink processes of length {}.", index, self.inner_chainlinks.len()));
+                            if indexed_bool_tuple {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                    else if $is_unique {
+                        for (index, chainlink) in self.inner_chainlinks.iter().enumerate() {
+                            let mut locked_is_running_inner_chainlink = self.is_running_inner_chainlinks[index].lock().await;
+                            if !*locked_is_running_inner_chainlink {
+                                *locked_is_running_inner_chainlink = true;
+                                let inner_chainlink = chainlink.clone();
+                                let is_running_inner_chainlink = self.is_running_inner_chainlinks[index].clone();
+                                std::thread::spawn(move || {
+                                    let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                        .enable_time()
+                                        .build()
+                                        .unwrap();
+
+                                    tokio_runtime.block_on(async {
+                                        inner_chainlink.process().await;
+                                        *is_running_inner_chainlink.lock().await = false;
+                                    });
+                                });
+                            }
+                        }
+                        return false;
+                    }
+                    else {
+                        self.inner_chainlinks
+                            .iter()
+                            .enumerate()
+                            .for_each(|(i, c)| {
+                                let inner_chainlink = c.clone();
+                                std::thread::spawn(move || {
+                                    let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                        .enable_time()
+                                        .build()
+                                        .unwrap();
+
+                                    tokio_runtime.block_on(async {
+                                        inner_chainlink.process().await;
+                                    });
+                                });
+                            });
+                        return false;
+                    }
+                }
+            }
+        }
+    };
 }

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
     use tokio::sync::RwLock;
     use crate::chain::ChainLink;
 
@@ -88,7 +88,9 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_link_enum_to_string() {
-        let test = TestChainLink::new(TestChainLinkInitializer { });
+        let test = TestChainLink::new_raw(
+            TestChainLinkInitializer { }
+        ).await;
         let value = Arc::new(RwLock::new(SomeInput::Second));
         test.push(value).await;
         test.process().await;
@@ -105,7 +107,11 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_link_using_initializer() {
-        let test = HardCoded::new(HardCodedInitializer { text: String::from("test") });
+        let test = HardCoded::new_raw(
+            HardCodedInitializer {
+                text: String::from("test")
+            }
+        ).await;
         test.push_raw(()).await;
         test.process().await;
         let response = test.try_pop().await;
@@ -121,7 +127,12 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_enum_to_enum() {
-        let chain_test = ChainTest::new(ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } });
+        let chain_test = ChainTest::new_raw(
+            ChainTestInitializer::new(
+                TestChainLinkInitializer { },
+                StringToSomeInputInitializer { }
+            )
+        ).await;
         let value = Arc::new(RwLock::new(SomeInput::Second));
         chain_test.push(value).await;
         chain_test.process().await;
@@ -138,7 +149,13 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_enum_to_string_to_enum() {
-        let triple_test = TripleTest::new(TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } });
+        let triple_test = TripleTest::new_raw(
+            TripleTestInitializer::new(
+                TestChainLinkInitializer { },
+                StringToSomeInputInitializer { },
+                TestChainLinkInitializer { }
+            )
+        ).await;
         let value = Arc::new(RwLock::new(SomeInput::First));
         triple_test.push(value).await;
         triple_test.process().await;
@@ -155,7 +172,19 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_to_chain() {
-        let test = ChainToChain::new(ChainToChainInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } } });
+        let test = ChainToChain::new_raw(
+            ChainToChainInitializer::new(
+                ChainTestInitializer::new(
+                    TestChainLinkInitializer { },
+                    StringToSomeInputInitializer { }
+                ),
+                TripleTestInitializer::new(
+                    TestChainLinkInitializer { },
+                    StringToSomeInputInitializer { },
+                    TestChainLinkInitializer { }
+                )
+            )
+        ).await;
         let value = Arc::new(RwLock::new(SomeInput::First));
         test.push(value).await;
         test.process().await;
@@ -172,7 +201,20 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_to_chain_to_chain_link() {
-        let test = ChainToChainToLink::new(ChainToChainToLinkInitializer { x_chain_test: ChainTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { } }, xx_triple_test: TripleTestInitializer { x_test_chain_link: TestChainLinkInitializer { }, xx_string_to_some_input: StringToSomeInputInitializer { }, xxx_test_chain_link: TestChainLinkInitializer { } }, xxx_string_to_some_input: StringToSomeInputInitializer { } });
+        let test = ChainToChainToLink::new_raw(
+            ChainToChainToLinkInitializer::new(
+                ChainTestInitializer::new(
+                    TestChainLinkInitializer { },
+                    StringToSomeInputInitializer { }
+                ),
+                TripleTestInitializer::new(
+                    TestChainLinkInitializer { },
+                    StringToSomeInputInitializer { },
+                    TestChainLinkInitializer { }
+                ),
+                StringToSomeInputInitializer { }
+            )
+        ).await;
         let value = Arc::new(RwLock::new(SomeInput::Second));
         test.push(value).await;
         test.process().await;
@@ -189,7 +231,12 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn split_to_two_chain_links() {
-        let test = SplitMergeTwoChainLinks::new(SplitMergeTwoChainLinksInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } });
+        let test = SplitMergeTwoChainLinks::new_raw(
+            SplitMergeTwoChainLinksInitializer::new(
+                StringToIntInitializer { },
+                StringPrintInitializer { }
+            )
+        ).await;
         test.push(Arc::new(RwLock::new(String::from("test")))).await;
         test.process().await;
         let response = test.try_pop().await;
@@ -225,7 +272,16 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn split_to_two_chain_links_round_robin_finds_flushed_chainlink() {
-        let test = SplitMergeMultiple::new(SplitMergeMultipleInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_split_merge_two_chain_links_initializer: SplitMergeTwoChainLinksInitializer { x_string_to_int_initializer: StringToIntInitializer { }, xx_string_print_initializer: StringPrintInitializer { } }, xxx_string_print_initializer: StringPrintInitializer { } });
+        let test = SplitMergeMultiple::new_raw(
+            SplitMergeMultipleInitializer::new(
+                StringToIntInitializer { },
+                SplitMergeTwoChainLinksInitializer::new(
+                    StringToIntInitializer { },
+                    StringPrintInitializer { }
+                ),
+                StringPrintInitializer { }
+            )
+        ).await;
         test.push(Arc::new(RwLock::new(String::from("test")))).await;
         test.process().await;
         let response = test.try_pop().await;
@@ -277,5 +333,50 @@ mod test {
                 // expected path
             }
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn duplicate_locking() {
+
+        chain_link!(IsUppercase, input: String => bool, {
+            match input.received {
+                // we will pretend that it takes a little bit of time to check
+                Some(text) => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    let text = text.read().await;
+                    if text.is_empty() {
+                        Some(false)
+                    }
+                    else {
+                        let at_least_one_lowercase_letter = text
+                            .chars()
+                            .any(|c| c.is_lowercase());
+                        Some(!at_least_one_lowercase_letter)
+                    }
+                },
+                None => None
+            }
+        });
+
+        duplicate!(ParallelIsUppercase, String => bool, IsUppercase);
+
+        let dup = ParallelIsUppercase::new_raw(
+            ParallelIsUppercaseInitializer::new(
+                2,
+                IsUppercaseInitializer { }
+            )
+        ).await;
+
+        dup.push_raw(String::from("test")).await;
+        dup.push_raw(String::from("TEST")).await;
+
+        dup.process().await;
+        dup.process().await;
+
+        let output = dup.try_pop().await;
+        assert!(output.is_some());
+
+        let output = dup.try_pop().await;
+        assert!(output.is_some());
     }
 }

@@ -112,16 +112,18 @@ async fn main() {
         String::from("sour")
     ]);
     
-    let madlib_constructor = MadlibConstructor::new(madlib::MadlibConstructorInitializer {
-        x_madlib_construction: MadlibConstructionInitializer {
-            possible_words_per_speech_part,
-            index: 0,
-            madlib_parts: None
-        },
-        xx_collect_constructed_madlib_parts: CollectConstructedMadlibPartsInitializer {
-            buffer: vec![]
-        }
-    });
+    let madlib_constructor = MadlibConstructor::new_raw(
+        madlib::MadlibConstructorInitializer::new(
+            MadlibConstructionInitializer {
+                possible_words_per_speech_part,
+                index: 0,
+                madlib_parts: None
+            },
+            CollectConstructedMadlibPartsInitializer {
+                buffer: vec![]
+            }
+        )
+    ).await;
 
     madlib_constructor.push_raw(vec![
         MadlibPart::Static(String::from("The big")),

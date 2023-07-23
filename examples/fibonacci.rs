@@ -24,7 +24,9 @@ mod fibonacci {
 #[tokio::main]
 async fn main() {
     
-    let fibonacci_sequence = FibonacciSequence::new(FibonacciSequenceInitializer { });
+    let fibonacci_sequence = FibonacciSequence::new_raw(
+        FibonacciSequenceInitializer { }
+    ).await;
 
     // push on the initial set
     fibonacci_sequence.push_raw((0, 1)).await;

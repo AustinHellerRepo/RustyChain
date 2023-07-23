@@ -155,15 +155,17 @@ async fn main() {
     writeln!(second_file, "Charlie Chucks,43").unwrap();
 
     // setup chain
-    let etl_process = EtlProcess::new(EtlProcessInitializer {
-        x_read_from_file: ReadFromFileInitializer {
-            buffer: None
-        },
-        xx_parse_string_to_customer: ParseStringToCustomerInitializer { },
-        xxx_insert_customer_into_database: InsertCustomerIntoDatabaseInitializer {
-            repository: DatabaseRepository { }
-        }
-    });
+    let etl_process = EtlProcess::new_raw(
+        EtlProcessInitializer::new(
+            ReadFromFileInitializer {
+                buffer: None
+            },
+            ParseStringToCustomerInitializer { },
+            InsertCustomerIntoDatabaseInitializer { 
+                repository: DatabaseRepository { }
+            }
+        )
+    ).await;
 
     // pass in files
     fn get_path_as_string(path: &std::path::Path) -> String {
