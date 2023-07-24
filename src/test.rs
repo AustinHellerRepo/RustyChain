@@ -358,7 +358,7 @@ mod test {
             }
         });
 
-        duplicate!(ParallelIsUppercase, String => bool, IsUppercase);
+        duplicate!(ParallelIsUppercase, String => bool, IsUppercase, join);
 
         let dup = ParallelIsUppercase::new_raw(
             ParallelIsUppercaseInitializer::new(
