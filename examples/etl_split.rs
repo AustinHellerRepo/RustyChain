@@ -117,10 +117,10 @@ mod etl {
             pub async fn insert_customer(&self, customer: &Customer) {
                 // make the mirror database take a little longer than the primary database
                 if self.name.as_str() == "Primary" {
-                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
                 }
                 else {
-                    tokio::time::sleep(Duration::from_millis(300)).await;
+                    tokio::time::sleep(Duration::from_millis(1100)).await;
                 }
                 // inserts into database
                 println!("DatabaseRepository: inserted customer {} with age {} into datababase {}", customer.customer_name, customer.age, self.name);
@@ -142,6 +142,8 @@ mod etl {
         use rusty_chain::split_merge;
         use super::{models::Customer, database::{InsertCustomerIntoDatabase, InsertCustomerIntoDatabaseInitializer}};
 
+        // this split_merge uses a "join" so that it can know if the process has completed
+        // the other options (omitted or "unique") do not provide that type of information since they run immediately without waiting for confirmation that something was processed
         split_merge!(SeparateDatabaseSplitMerge, Customer => bool, (InsertCustomerIntoDatabase, InsertCustomerIntoDatabase), join);
     }
 
@@ -168,7 +170,26 @@ async fn main() {
     writeln!(second_file, "Charlie Chucks,43").unwrap();
 
     // setup chain
-    let etl_process = EtlProcess::new(EtlProcessInitializer { x_read_from_file: ReadFromFileInitializer { buffer: None }, xx_parse_string_to_customer: ParseStringToCustomerInitializer { }, xxx_separate_database_split_merge: SeparateDatabaseSplitMergeInitializer { x_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Primary")} }, xx_insert_customer_into_database_initializer: InsertCustomerIntoDatabaseInitializer { repository: DatabaseRepository { name: String::from("Mirror") } } } });
+    let etl_process = EtlProcess::new_raw(
+        EtlProcessInitializer::new(
+            ReadFromFileInitializer {
+                buffer: None
+            },
+            ParseStringToCustomerInitializer { },
+            SeparateDatabaseSplitMergeInitializer::new(
+                InsertCustomerIntoDatabaseInitializer {
+                    repository: DatabaseRepository {
+                        name: String::from("Primary")
+                    }
+                },
+                InsertCustomerIntoDatabaseInitializer {
+                    repository: DatabaseRepository {
+                        name: String::from("Mirror")
+                    }
+                }
+            )
+        )
+    ).await;
 
     // pass in files
     fn get_path_as_string(path: &std::path::Path) -> String {

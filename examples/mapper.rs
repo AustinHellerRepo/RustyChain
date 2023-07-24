@@ -102,7 +102,11 @@ async fn main() {
     use mapper_example::*;
     use rusty_chain::chain::*;
 
-    let mapper = Arc::new(GetParentById::new(GetParentByIdInitializer { connection_string: String::from("get from settings") }));
+    let mapper = Arc::new(GetParentById::new_raw(
+        GetParentByIdInitializer {
+            connection_string: String::from("get from settings")
+        }
+    ).await);
     
     // this thread is queueing up parent models to be received on the other end faster than they can be pulled out
     let receive_mapper = mapper.clone();
