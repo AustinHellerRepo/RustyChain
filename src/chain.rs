@@ -29,6 +29,7 @@ macro_rules! chain_link {
                 )*
             }
 
+            #[allow(dead_code)]
             impl $type {
                 pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock::<[<$type Initializer>]>>) -> Self {
                     $type {
@@ -223,32 +224,29 @@ macro_rules! chain {
 
 #[macro_export]
 macro_rules! split_merge {
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*)) => {
-        split_merge!(middle $name, $from, $to, false, false, () (0) () (x) () (), $($destination),*);
+    // all split types are run immediately without waiting
+    // `process` returns false
+    ($name:ty, $from:ty => $to:ty, ($($split:ty),*), $choice:ident $mode:ident) => {
+        split_merge!(middle $name, $from, $to, $choice, $mode, () (0) () (x) () (), $($split),*);
     };
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), join) => {
-        split_merge!(middle $name, $from, $to, true, false, () (0) () (x) () (), $($destination),*);
-    };
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), unique) => {
-        split_merge!(middle $name, $from, $to, false, true, () (0) () (x) () (), $($destination),*);
-    };
-    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
+    (middle $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
         paste::paste! {
-            split_merge!(end $name, $from, $to, $is_join, $is_unique, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
+            split_merge!(end $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
         }
     };
-    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
+    (middle $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($split:ty),*) => {
         paste::paste! {
-            split_merge!(middle $name, $from, $to, $is_join, $is_unique, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
+            split_merge!(middle $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($split),*);
         }
     };
-    (end $name:ident, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($([$bool:tt])*) ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
+    (end $name:ident, $from:ty, $to:ty, $choice:ident, $mode:ident, ($([$bool:tt])*) ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
         paste::paste! {
             pub struct $name {
                 $(
                     [<$($field)*>]: std::sync::Arc<$field_type>,
                 )*
                 next_send_field_index: tokio::sync::Mutex<usize>,
+                next_process_field_index: tokio::sync::Mutex<usize>,
                 $(
                     [<is_running_ $($field)*>]: std::sync::Arc<tokio::sync::Mutex<bool>>,
                 )*
@@ -277,6 +275,7 @@ macro_rules! split_merge {
                             [<$($field)*>]: std::sync::Arc::new($field_type::new(initializer.read().await.[<$($field)* _initializer>].clone()).await),
                         )*
                         next_send_field_index: tokio::sync::Mutex::new(0),
+                        next_process_field_index: tokio::sync::Mutex::new(0),
                         $(
                             [<is_running_ $($field)*>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
                         )*
@@ -347,52 +346,316 @@ macro_rules! split_merge {
                     return None;
                 }
                 async fn process(&self) -> bool {
-                    if $is_join {
-                        let bool_tuple = futures::join!($(self.[<$($field)*>].process()),*);
-                        let false_tuple = ($($bool),*);
-                        return bool_tuple != false_tuple;
-                    }
-                    else if $is_unique {
-                        $(
-                            {
-                                let mut [<locked_is_running_ $($field)*>] = self.[<is_running_ $($field)*>].lock().await;
-                                if !*[<locked_is_running_ $($field)*>] {
-                                    *[<locked_is_running_ $($field)*>] = true;
-                                    let [<$($field)*>] = self.[<$($field)*>].clone();
-                                    let [<is_running_ $($field)*>] = self.[<is_running_ $($field)*>].clone();
-                                    std::thread::spawn(move || {
-                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
-                                            .enable_time()
-                                            .build()
-                                            .unwrap();
+                    let choice = stringify!($choice);
+                    let mode = stringify!($mode);
+                    match mode {
+                        "join" => {
+                            match choice {
+                                "all" => {
+                                    let bool_tuple = futures::join!($(self.[<$($field)*>].process()),*);
+                                    let false_tuple = ($($bool),*);
+                                    return bool_tuple != false_tuple;
+                                },
+                                "one" => {
+                                    // get the next field to process
+                                    let mut next_process_field_index_lock = self.next_process_field_index.lock().await;
+                                    let next_process_field_index = *next_process_field_index_lock;
+                                    if next_process_field_index + 1 == ($count) {
+                                        *next_process_field_index_lock = 0;
+                                    }
+                                    else {
+                                        *next_process_field_index_lock = next_process_field_index + 1;
+                                    }
 
-                                        tokio_runtime.block_on(async {
-                                            [<$($field)*>].process().await;
-                                            *[<is_running_ $($field)*>].lock().await = false;
-                                        });
-                                    });
+                                    // get the output for the current field index
+                                    let output;
+                                    if false {
+                                        panic!("False should not be true");
+                                    }
+                                    $(
+                                        else if next_process_field_index == ($index) {
+                                            output = self.[<$($field)*>].process().await;
+                                        }
+                                    )*
+                                    else {
+                                        panic!("Index out of bounds: next_send_field_index");
+                                    }
+                                    return output;
+                                },
+                                "random" => {
+                                    let next_process_field_index;
+                                    {
+                                        use rand::Rng;
+
+                                        // get the next field to process
+                                        let mut rng = rand::thread_rng();
+                                        next_process_field_index = rng.gen_range(0..($count));
+                                    }
+
+                                    // get the output for the current field index
+                                    let output;
+                                    if false {
+                                        panic!("False should not be true");
+                                    }
+                                    $(
+                                        else if next_process_field_index == ($index) {
+                                            output = self.[<$($field)*>].process().await;
+                                        }
+                                    )*
+                                    else {
+                                        panic!("Index out of bounds: next_send_field_index");
+                                    }
+                                    return output;
+                                },
+                                _ => {
+                                    panic!("Unexpected threading choice provided to macro.");
                                 }
                             }
-                        )*
-                        return false;
-                    }
-                    else {
-                        $(
-                            {
-                                let [<$($field)*>] = self.[<$($field)*>].clone();
-                                std::thread::spawn(move || {
-                                    let tokio_runtime = tokio::runtime::Builder::new_current_thread()
-                                        .enable_time()
-                                        .build()
-                                        .unwrap();
+                        },
+                        "unique" => {
+                            match choice {
+                                "all" => {
+                                    $(
+                                        {
+                                            let mut [<locked_is_running_ $($field)*>] = self.[<is_running_ $($field)*>].lock().await;
+                                            if !*[<locked_is_running_ $($field)*>] {
+                                                *[<locked_is_running_ $($field)*>] = true;
+                                                let [<$($field)*>] = self.[<$($field)*>].clone();
+                                                let [<is_running_ $($field)*>] = self.[<is_running_ $($field)*>].clone();
+                                                std::thread::spawn(move || {
+                                                    let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                                        .enable_time()
+                                                        .build()
+                                                        .unwrap();
 
-                                    tokio_runtime.block_on(async {
-                                        [<$($field)*>].process().await;
-                                    });
-                                });
+                                                    tokio_runtime.block_on(async {
+                                                        [<$($field)*>].process().await;
+                                                        *[<is_running_ $($field)*>].lock().await = false;
+                                                    });
+                                                });
+                                            }
+                                        }
+                                    )*
+                                },
+                                "one" => {
+                                    let mut attempts_count = 0;
+
+                                    while attempts_count < ($count) {
+                                        // get the next field to process
+                                        let next_process_field_index;
+                                        {
+                                            let mut next_process_field_index_lock = self.next_process_field_index.lock().await;
+                                            next_process_field_index = *next_process_field_index_lock;
+                                            if next_process_field_index + 1 == ($count) {
+                                                *next_process_field_index_lock = 0;
+                                            }
+                                            else {
+                                                *next_process_field_index_lock = next_process_field_index + 1;
+                                            }
+                                        }
+
+                                        // get the output for the current field index
+                                        if false {
+                                            panic!("False should not be true");
+                                        }
+                                        $(
+                                            else if next_process_field_index == ($index) {
+                                                let mut [<locked_is_running_ $($field)*>] = self.[<is_running_ $($field)*>].lock().await;
+                                                if !*[<locked_is_running_ $($field)*>] {
+                                                    *[<locked_is_running_ $($field)*>] = true;
+                                                    let [<$($field)*>] = self.[<$($field)*>].clone();
+                                                    let [<is_running_ $($field)*>] = self.[<is_running_ $($field)*>].clone();
+                                                    std::thread::spawn(move || {
+                                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                                            .enable_time()
+                                                            .build()
+                                                            .unwrap();
+
+                                                        tokio_runtime.block_on(async {
+                                                            [<$($field)*>].process().await;
+                                                            *[<is_running_ $($field)*>].lock().await = false;
+                                                        });
+                                                    });
+
+                                                    // only one thread is started
+                                                    return false;
+                                                }
+                                            }
+                                        )*
+                                        else {
+                                            panic!("Index out of bounds: next_send_field_index");
+                                        }
+                                        attempts_count += 1;
+                                    }
+                                },
+                                "random" => {
+
+                                    // create a mapping of indexes to attempt before trying all indexes
+                                    let mut mapped_next_process_field_index: Vec<u32> = (0..($count)).collect();
+                                    {
+                                        use rand::thread_rng;
+                                        use rand::seq::SliceRandom;
+
+                                        mapped_next_process_field_index.shuffle(&mut thread_rng());
+                                    }
+
+                                    // cycle over all field indexes until one is found
+                                    for _ in 0..($count) {
+
+                                        // get the next field to process
+                                        let next_process_field_index;
+                                        {
+                                            let mut next_process_field_index_lock = self.next_process_field_index.lock().await;
+                                            next_process_field_index = *next_process_field_index_lock;
+                                            if next_process_field_index + 1 == ($count) {
+                                                *next_process_field_index_lock = 0;
+                                            }
+                                            else {
+                                                *next_process_field_index_lock = next_process_field_index + 1;
+                                            }
+                                        }
+
+                                        // map the 0..($count) index to a specific non-repeating random index
+                                        let next_process_field_index = mapped_next_process_field_index[next_process_field_index];
+
+                                        // get the output for the current field index
+                                        if false {
+                                            panic!("False should not be true");
+                                        }
+                                        $(
+                                            else if next_process_field_index == ($index) {
+                                                let mut [<locked_is_running_ $($field)*>] = self.[<is_running_ $($field)*>].lock().await;
+                                                if !*[<locked_is_running_ $($field)*>] {
+                                                    *[<locked_is_running_ $($field)*>] = true;
+                                                    let [<$($field)*>] = self.[<$($field)*>].clone();
+                                                    let [<is_running_ $($field)*>] = self.[<is_running_ $($field)*>].clone();
+                                                    std::thread::spawn(move || {
+                                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                                            .enable_time()
+                                                            .build()
+                                                            .unwrap();
+
+                                                        tokio_runtime.block_on(async {
+                                                            [<$($field)*>].process().await;
+                                                            *[<is_running_ $($field)*>].lock().await = false;
+                                                        });
+                                                    });
+
+                                                    // only one thread is started
+                                                    return false;
+                                                }
+                                            }
+                                        )*
+                                        else {
+                                            panic!("Index out of bounds: next_send_field_index");
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    panic!("Unexpected threading choice provided to macro.");
+                                }
                             }
-                        )*
-                        return false;
+                            return false;
+                        },
+                        "free" => {
+                            match choice {
+                                "all" => {
+                                    $(
+                                        {
+                                            let [<$($field)*>] = self.[<$($field)*>].clone();
+                                            std::thread::spawn(move || {
+                                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                                    .enable_time()
+                                                    .build()
+                                                    .unwrap();
+
+                                                tokio_runtime.block_on(async {
+                                                    [<$($field)*>].process().await;
+                                                });
+                                            });
+                                        }
+                                    )*
+                                },
+                                "one" => {
+                                    // get the next field to process
+                                    let next_process_field_index;
+                                    {
+                                        let mut next_process_field_index_lock = self.next_process_field_index.lock().await;
+                                        next_process_field_index = *next_process_field_index_lock;
+                                        if next_process_field_index + 1 == ($count) {
+                                            *next_process_field_index_lock = 0;
+                                        }
+                                        else {
+                                            *next_process_field_index_lock = next_process_field_index + 1;
+                                        }
+                                    }
+
+                                    // get the output for the current field index
+                                    if false {
+                                        panic!("False should not be true");
+                                    }
+                                    $(
+                                        else if next_process_field_index == ($index) {
+                                            let [<$($field)*>] = self.[<$($field)*>].clone();
+                                            std::thread::spawn(move || {
+                                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                                    .enable_time()
+                                                    .build()
+                                                    .unwrap();
+
+                                                tokio_runtime.block_on(async {
+                                                    [<$($field)*>].process().await;
+                                                });
+                                            });
+                                        }
+                                    )*
+                                    else {
+                                        panic!("Index out of bounds: next_send_field_index");
+                                    }
+                                },
+                                "random" => {
+                                    let next_process_field_index;
+                                    {
+                                        use rand::Rng;
+
+                                        // get the next field to process
+                                        let mut rng = rand::thread_rng();
+                                        next_process_field_index = rng.gen_range(0..($count));
+                                    }
+
+                                    // get the output for the current field index
+                                    if false {
+                                        panic!("False should not be true");
+                                    }
+                                    $(
+                                        else if next_process_field_index == ($index) {
+                                            let [<$($field)*>] = self.[<$($field)*>].clone();
+                                            std::thread::spawn(move || {
+                                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                                    .enable_time()
+                                                    .build()
+                                                    .unwrap();
+
+                                                tokio_runtime.block_on(async {
+                                                    [<$($field)*>].process().await;
+                                                });
+                                            });
+                                        }
+                                    )*
+                                    else {
+                                        panic!("Index out of bounds: next_send_field_index");
+                                    }
+
+                                }
+                                _ => {
+                                    panic!("Unexpected threading choice provided to macro.");
+                                }
+                            }
+                            return false;
+                        },
+                        _ => {
+                            panic!("Unexpected threading mode provided to macro.");
+                        }
                     }
                 }
             }
@@ -402,16 +665,16 @@ macro_rules! split_merge {
 
 #[macro_export]
 macro_rules! duplicate {
-    ($name:ty, $from:ty => $to:ty, $duplicate:ty) => {
-        duplicate!(end $name, $from => $to, $duplicate, false, false)
+    ($name:ty, $from:ty => $to:ty, $duplicate:ty, free) => {
+        duplicate!(end $name, $from => $to, $duplicate, true, false, false)
     };
     ($name:ty, $from:ty => $to:ty, $duplicate:ty, join) => {
-        duplicate!(end $name, $from => $to, $duplicate, true, false)
+        duplicate!(end $name, $from => $to, $duplicate, false, true, false)
     };
     ($name:ty, $from:ty => $to:ty, $duplicate:ty, unique) => {
-        duplicate!(end $name, $from => $to, $duplicate, false, true)
+        duplicate!(end $name, $from => $to, $duplicate, false, false, true)
     };
-    (end $name:ty, $from:ty => $to:ty, $duplicate:ty, $is_join:expr, $is_unique:expr) => {
+    (end $name:ty, $from:ty => $to:ty, $duplicate:ty, $is_free:expr, $is_join:expr, $is_unique:expr) => {
         paste::paste! {
             pub struct $name {
                 next_send_field_index: tokio::sync::Mutex<usize>,
@@ -542,11 +805,10 @@ macro_rules! duplicate {
                         }
                         return false;
                     }
-                    else {
+                    else if $is_free {
                         self.inner_chainlinks
                             .iter()
-                            .enumerate()
-                            .for_each(|(i, c)| {
+                            .for_each(|c| {
                                 let inner_chainlink = c.clone();
                                 std::thread::spawn(move || {
                                     let tokio_runtime = tokio::runtime::Builder::new_current_thread()
@@ -560,6 +822,9 @@ macro_rules! duplicate {
                                 });
                             });
                         return false;
+                    }
+                    else {
+                        panic!("Unexpected threading mode provided to macro.");
                     }
                 }
             }

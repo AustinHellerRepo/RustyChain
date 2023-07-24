@@ -318,7 +318,7 @@ mod robotics {
 
         // the split_merge is not joined, so this runs each sensor in separate threads
         // each parallel chainlink will also not run again until a previous instance has completed due to the "unique" keyword used below
-        split_merge!(SensorySplit, () => SensorData, (CameraSensor, ControllerSensor), unique);
+        split_merge!(SensorySplit, () => SensorData, (CameraSensor, ControllerSensor), one unique);
     }
 
     pub mod automated_robot {

@@ -144,7 +144,7 @@ mod etl {
 
         // this split_merge uses a "join" so that it can know if the process has completed
         // the other options (omitted or "unique") do not provide that type of information since they run immediately without waiting for confirmation that something was processed
-        split_merge!(SeparateDatabaseSplitMerge, Customer => bool, (InsertCustomerIntoDatabase, InsertCustomerIntoDatabase), join);
+        split_merge!(SeparateDatabaseSplitMerge, Customer => bool, (InsertCustomerIntoDatabase, InsertCustomerIntoDatabase), all join);
     }
 
     // example filename: "etl_process.rs"

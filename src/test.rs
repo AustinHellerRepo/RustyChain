@@ -83,8 +83,8 @@ mod test {
         }
     });
     
-    split_merge!(SplitMergeTwoChainLinks, String => i32, (StringToInt, StringPrint), join);
-    split_merge!(SplitMergeMultiple, String => i32, (StringToInt, SplitMergeTwoChainLinks, StringPrint), join);
+    split_merge!(SplitMergeTwoChainLinks, String => i32, (StringToInt, StringPrint), all join);
+    split_merge!(SplitMergeMultiple, String => i32, (StringToInt, SplitMergeTwoChainLinks, StringPrint), all join);
 
     #[tokio::test(flavor = "multi_thread")]
     async fn chain_link_enum_to_string() {
