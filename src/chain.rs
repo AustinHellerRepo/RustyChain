@@ -133,39 +133,27 @@ macro_rules! new_chain {
         }
     };
     // the first type following by a chain
-    (apple $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $($($rest:ty)=>*),*) => {
+    (apple $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty => $($($rest:ty)=>*),*) => {
         paste::paste! {
-            new_chain!(banana $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x ) $($($rest)=>*),*);
-        }
-    };
-    // the last type from a chain and out of types
-    (banana $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty) => {
-        paste::paste! {
-            new_chain!(end $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]));
-        }
-    };
-    // the last type from a chain and next set of types starting
-    (banana $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty, $($($rest:ty)=>*),*) => {
-        paste::paste! {
-            new_chain!(apple $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]) $($($rest)=>*),*);
-        }
-    };
-    // the middle type of a chain
-    (banana $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $($($rest:ty)=>*),*) => {
-        paste::paste! {
-            new_chain!(banana $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($mid)*) ($($mid_name)*));
+            new_chain!(carrot $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x x ) ([$another]) ([<$($prefix)* x _ $another:snake>]) $($($rest)=>*),*);
         }
     };
     // the middle type of a chain after already being in the middle
-    (carrot $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*) $next:ty => $($($rest:ty)=>*),*) => {
+    (carrot $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty => $($($rest:ty)=>*),*) => {
         paste::paste! {
-            new_chain!(carrot $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($mid)*) ($($mid_name)*));
+            new_chain!(carrot $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x) ($($past)* [$next]) ($($past_name)* [<$($prefix)* _ $next:snake>]) $($($rest)=>*),*);
+        }
+    };
+    // the last type of a chain after already being in the middle and there is another chain
+    (carrot $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty, $($($rest:ty)=>*),*) => {
+        paste::paste! {
+            new_chain!(apple $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]) ($($prefix)* x ) $($($rest)=>*),*);
         }
     };
     // the last type of a chain after already being in the middle and the end
     (carrot $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty) => {
         paste::paste! {
-            new_chain!(carrot $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)*) ($($last_name)*) ($($mid)*) ($($mid_name)*));
+            new_chain!(end $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]));
         }
     };
     (end
@@ -177,7 +165,7 @@ macro_rules! new_chain {
         ($([$first:ty])*)
         ($($first_name:ident)*)
         ($([$([$mid:ty])*])*)
-        ($([$([$($mid_name:ident)*])*])*)
+        ($([$($mid_name:ident)*])*)
         ($([$last:ty])*)
         ($($last_name:ident)*)) => {
         

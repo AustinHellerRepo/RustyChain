@@ -405,5 +405,6 @@ mod test {
         new_chain!(TwoSplit, String => String, (ToLower, ToUpper));
         new_chain!(ThreeSplit, String => String, (ToLower, ToUpper, ToUpper));
         new_chain!(TwoChain, String => String, (ToLower => ToUpper));
+        new_chain!(ThreeChain, String => String, (ToLower => ToUpper => ToUpper));
     }
 }
