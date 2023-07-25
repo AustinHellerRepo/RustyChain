@@ -379,4 +379,31 @@ mod test {
         let output = dup.try_pop().await;
         assert!(output.is_some());
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn new_chain() {
+
+        chain_link!(ToLower, input: String => String, {
+            match input.received {
+                Some(text) => {
+                    Some(text.read().await.to_lowercase())
+                },
+                None => None
+            }
+        });
+
+        chain_link!(ToUpper, input: String => String, {
+            match input.received {
+                Some(text) => {
+                    Some(text.read().await.to_uppercase())
+                },
+                None => None
+            }
+        });
+
+        new_chain!(Solo, String => String, (ToLower));
+        new_chain!(TwoSplit, String => String, (ToLower, ToUpper));
+        new_chain!(ThreeSplit, String => String, (ToLower, ToUpper, ToUpper));
+        new_chain!(TwoChain, String => String, (ToLower => ToUpper));
+    }
 }
