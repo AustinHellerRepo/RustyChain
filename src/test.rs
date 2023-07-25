@@ -404,7 +404,12 @@ mod test {
         new_chain!(Solo, String => String, (ToLower));
         new_chain!(TwoSplit, String => String, (ToLower, ToUpper));
         new_chain!(ThreeSplit, String => String, (ToLower, ToUpper, ToUpper));
+        new_chain!(FourSplit, String => String, (ToLower, ToUpper, ToUpper, ToLower));
         new_chain!(TwoChain, String => String, (ToLower => ToUpper));
         new_chain!(ThreeChain, String => String, (ToLower => ToUpper => ToUpper));
+        new_chain!(FourChain, String => String, (ToLower => ToUpper => ToUpper => ToLower));
+        new_chain!(FourChainSolo, String => String, (ToLower => ToUpper => ToUpper => ToLower, ToLower));
+        new_chain!(FourChainTwoChain, String => String, (ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower));
+        new_chain!(FourChainSoloTwoChain, String => String, (ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower));
     }
 }
