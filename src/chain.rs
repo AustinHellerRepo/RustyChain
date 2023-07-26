@@ -244,6 +244,8 @@ macro_rules! new_chain {
                         )*
                     }
                 }
+
+                // useful functions for processing chainlinks
                 $(
                     async fn [<process_ $first_name>](&self) -> bool {
                         let mut is_at_least_one_processed = true;
@@ -286,6 +288,8 @@ macro_rules! new_chain {
                     }
                     return is_last_processed;
                 }
+
+                // each of these functions represents all of the possible permutations for processing chains
                 async fn process_all_join(&self) -> bool {
                     let bool_tuple = futures::join!($(self.$solo_name.process(),)*$(self.[<process_ $first_name>]()),*);
                     let false_tuple = ($($bool,)*);
