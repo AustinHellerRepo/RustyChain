@@ -400,17 +400,6 @@ mod test {
                 None => None
             }
         });
-        new_chain!(Solo, String => String, (ToLower) all join);
-        new_chain!(TwoSplit, String => String, (ToLower, ToUpper) one free);
-        new_chain!(ThreeSplit, String => String, (ToLower, ToUpper, ToUpper) random unique);
-        new_chain!(FourSplit, String => String, (ToLower, ToUpper, ToUpper, ToLower) all free);
-        new_chain!(TwoChain, String => String, (ToLower => ToUpper) one unique);
-        new_chain!(ThreeChain, String => String, (ToLower => ToUpper => ToUpper) random join);
-        new_chain!(FourChain, String => String, (ToLower => ToUpper => ToUpper => ToLower) random free);
-        new_chain!(FourChainSolo, String => String, (ToLower => ToUpper => ToUpper => ToLower, ToLower) all unique);
-        new_chain!(FourChainTwoChain, String => String, (ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower) one join);
-        new_chain!(FourChainSoloTwoChain, String => String, (ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower) all join);
-        new_chain!(TwoChainTwoChain, String => String, (ToLower => ToUpper, ToUpper => ToLower) all join);
 
         new_chain!(SoloAllJoin, String => String, (ToLower) all join);
         new_chain!(TwoSplitAllJoin, String => String, (ToLower, ToUpper) all join);
