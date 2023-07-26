@@ -313,19 +313,33 @@ mod robotics {
     }
 
     pub mod sensory_split {
-        use rusty_chain::split_merge;
+        use rusty_chain::chain;
+
         use super::{model::SensorData, controller_sensor::{ControllerSensor, ControllerSensorInitializer}, camera_sensor::{CameraSensor, CameraSensorInitializer}};
 
         // the split_merge is not joined, so this runs each sensor in separate threads
         // each parallel chainlink will also not run again until a previous instance has completed due to the "unique" keyword used below
-        split_merge!(SensorySplit, () => SensorData, (CameraSensor, ControllerSensor), unique);
+        chain!(SensorySplit,
+            () => SensorData,
+            [
+                CameraSensor,
+                ControllerSensor
+            ],
+            all unique
+        );
     }
 
     pub mod automated_robot {
         use rusty_chain::chain;
         use super::{sensory_split::{SensorySplit, SensorySplitInitializer}, sensor_processor::{SensorProcessor, SensorProcessorInitializer}, robot_interface::{RobotInterface, RobotInterfaceInitializer}};
 
-        chain!(AutomatedRobot, () => bool, SensorySplit => SensorProcessor => RobotInterface);
+        chain!(AutomatedRobot,
+            () => bool,
+            [
+                SensorySplit => SensorProcessor => RobotInterface
+            ],
+            all join
+        );
     }
 }
 

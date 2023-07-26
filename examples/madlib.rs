@@ -89,7 +89,13 @@ mod madlib {
         }
     });
 
-    chain!(MadlibConstructor, Vec<MadlibPart> => String, MadlibConstruction => CollectConstructedMadlibParts);
+    chain!(MadlibConstructor,
+        Vec<MadlibPart> => String,
+        [
+            MadlibConstruction => CollectConstructedMadlibParts
+        ],
+        all join
+    );
 }
 
 #[tokio::main]

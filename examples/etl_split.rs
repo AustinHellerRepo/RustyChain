@@ -139,12 +139,20 @@ mod etl {
     }
 
     pub mod separate_database {
-        use rusty_chain::split_merge;
+        use rusty_chain::chain;
+
         use super::{models::Customer, database::{InsertCustomerIntoDatabase, InsertCustomerIntoDatabaseInitializer}};
 
         // this split_merge uses a "join" so that it can know if the process has completed
         // the other options (omitted or "unique") do not provide that type of information since they run immediately without waiting for confirmation that something was processed
-        split_merge!(SeparateDatabaseSplitMerge, Customer => bool, (InsertCustomerIntoDatabase, InsertCustomerIntoDatabase), join);
+        chain!(SeparateDatabaseSplitMerge,
+            Customer => bool,
+            [
+                InsertCustomerIntoDatabase,
+                InsertCustomerIntoDatabase
+            ],
+            all join
+        );
     }
 
     // example filename: "etl_process.rs"
@@ -152,7 +160,13 @@ mod etl {
         use rusty_chain::chain;
         use super::{read_file::{ReadFromFile, ReadFromFileInitializer}, parse::{ParseStringToCustomer, ParseStringToCustomerInitializer}, separate_database::{SeparateDatabaseSplitMerge, SeparateDatabaseSplitMergeInitializer}};
 
-        chain!(EtlProcess, String => bool, ReadFromFile => ParseStringToCustomer => SeparateDatabaseSplitMerge);
+        chain!(EtlProcess,
+            String => bool,
+            [
+                ReadFromFile => ParseStringToCustomer => SeparateDatabaseSplitMerge
+            ],
+            all join
+        );
     }
 }
 
