@@ -29,6 +29,7 @@ macro_rules! chain_link {
                 )*
             }
 
+            #[allow(dead_code)]
             impl $type {
                 pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock::<[<$type Initializer>]>>) -> Self {
                     $type {
@@ -104,62 +105,68 @@ macro_rules! chain_link {
 
 #[macro_export]
 macro_rules! new_chain {
-    ($name:ty, $from:ty => $to:ty, ($($($field:ty)=>*),*)) => {
-        new_chain!(apple $name, $from, $to, () () () () () () () () (x) $($($field)=>*),*);
+    ($name:ty, $from:ty => $to:ty, ($($($field:ty)=>*),*) $choice:ident $mode:ident) => {
+        new_chain!(apple $name, $from, $to, $choice, $mode, () (0) () () () () () () () () () () (x) $($($field)=>*),*);
     };
     // only one new solo type left
-    (apple $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty) => {
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty) => {
         paste::paste! {
-            new_chain!(end $name, $from, $to, ($($solo)* [$next]) ($($solo_name)* [<$($prefix)* _ $next:snake>]) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*));
+            new_chain!(end $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)* [$index]) ($($chain_index_past)*) ($($solo)* [$next]) ($($solo_name)* [<$($prefix)* _ $next:snake>]) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*));
         }
     };
     // one solo type following by another set
-    (apple $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty, $($($rest:ty)=>*),*) => {
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty, $($($rest:ty)=>*),*) => {
         paste::paste! {
             // since this is the end of a chain, the next $next will be the first or solo
-            new_chain!(apple $name, $from, $to, ($($solo)* [$next]) ($($solo_name)* [<$($prefix)* _ $next:snake>]) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x ) $($($rest)=>*),*);
+            new_chain!(apple $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)* [$index]) ($($chain_index_past)*) ($($solo)* [$next]) ($($solo_name)* [<$($prefix)* _ $next:snake>]) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x ) $($($rest)=>*),*);
         }
     };
     // the first type following by a last type (no mid type) with no more types
-    (apple $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty) => {
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty) => {
         paste::paste! {
-            new_chain!(end $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)* []) ($($mid_name)* []) ($($last)* [$another]) ($($last_name)* [<$($prefix)* x _ $another:snake>]));
+            new_chain!(end $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)*) ($($chain_index_past)* [$index]) ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)* []) ($($mid_name)* []) ($($last)* [$another]) ($($last_name)* [<$($prefix)* x _ $another:snake>]));
         }
     };
     // the first type following by a last type (no mid type) with more types
-    (apple $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty, $($($rest:ty)=>*),*) => {
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty, $($($rest:ty)=>*),*) => {
         paste::paste! {
-            new_chain!(apple $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)* []) ($($mid_name)* []) ($($last)* [$another]) ($($last_name)* [<$($prefix)* x _ $another:snake>]) ($($prefix)* x x ) $($($rest)=>*),*);
+            new_chain!(apple $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)*) ($($chain_index_past)* [$index]) ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)* []) ($($mid_name)* []) ($($last)* [$another]) ($($last_name)* [<$($prefix)* x _ $another:snake>]) ($($prefix)* x x ) $($($rest)=>*),*);
         }
     };
     // the first type following by a chain
-    (apple $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty => $($($rest:ty)=>*),*) => {
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty => $($($rest:ty)=>*),*) => {
         paste::paste! {
-            new_chain!(carrot $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x x ) ([$another]) ([<$($prefix)* x _ $another:snake>]) $($($rest)=>*),*);
+            new_chain!(carrot $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)*) ($($chain_index_past)* [$index]) ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x x ) ([$another]) ([<$($prefix)* x _ $another:snake>]) $($($rest)=>*),*);
         }
     };
     // the middle type of a chain after already being in the middle
-    (carrot $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty => $($($rest:ty)=>*),*) => {
+    (carrot $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty => $($($rest:ty)=>*),*) => {
         paste::paste! {
-            new_chain!(carrot $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x) ($($past)* [$next]) ($($past_name)* [<$($prefix)* _ $next:snake>]) $($($rest)=>*),*);
+            new_chain!(carrot $name, $from, $to, $choice, $mode, ($($bool)*) ($index) ($($solo_index_past)*) ($($chain_index_past)*) ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x) ($($past)* [$next]) ($($past_name)* [<$($prefix)* _ $next:snake>]) $($($rest)=>*),*);
         }
     };
     // the last type of a chain after already being in the middle and there is another chain
-    (carrot $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty, $($($rest:ty)=>*),*) => {
+    (carrot $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty, $($($rest:ty)=>*),*) => {
         paste::paste! {
-            new_chain!(apple $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]) ($($prefix)* x ) $($($rest)=>*),*);
+            new_chain!(apple $name, $from, $to, $choice, $mode, ($($bool)*) ($index) ($($solo_index_past)*) ($($chain_index_past)*) ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]) ($($prefix)* x ) $($($rest)=>*),*);
         }
     };
     // the last type of a chain after already being in the middle and the end
-    (carrot $name:ty, $from:ty, $to:ty, ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty) => {
+    (carrot $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty) => {
         paste::paste! {
-            new_chain!(end $name, $from, $to, ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]));
+            new_chain!(end $name, $from, $to, $choice, $mode, ($($bool)*) ($index) ($($solo_index_past)*) ($($chain_index_past)*) ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]));
         }
     };
     (end
         $name:ty,
         $from:ty,
         $to:ty,
+        $choice:ident,
+        $mode:ident,
+        ($([$bool:expr])*)
+        ($count:expr)
+        ($([$solo_index:expr])*)
+        ($([$chain_index:expr])*)
         ($([$solo:ty])*)
         ($($solo_name:ident)*)
         ($([$first:ty])*)
@@ -171,9 +178,10 @@ macro_rules! new_chain {
         
         paste::paste! {
 
-            struct $name {
-                something: $from,
-                other: $to,
+            #[allow(dead_code)]
+            pub struct $name {
+                // for internal functionality
+                next_try_pop_index: std::sync::Arc<tokio::sync::Mutex<usize>>,
                 // for every split
                 $(
                     $first_name: $first,
@@ -187,6 +195,241 @@ macro_rules! new_chain {
                 )*
             }
 
+            #[allow(dead_code)]
+            pub struct [<$name Initializer>] {
+                $(
+                    pub $first_name: std::sync::Arc<tokio::sync::RwLock<[<$first Initializer>]>>,
+                    $(
+                        pub $mid_name: std::sync::Arc<tokio::sync::RwLock<[<$mid Initializer>]>>,
+                    )*
+                    pub $last_name: std::sync::Arc<tokio::sync::RwLock<[<$last Initializer>]>>,
+                )*
+                $(
+                    $solo_name: std::sync::Arc<tokio::sync::RwLock<[<$solo Initializer>]>>,
+                )*
+            }
+
+            #[allow(dead_code)]
+            impl [<$name Initializer>] {
+                pub fn new($($first_name: [<$first Initializer>], $($mid_name: [<$mid Initializer>],)* $last_name: [<$last Initializer>],)* $($solo_name: [<$solo Initializer>],)*) -> Self {
+                    [<$name Initializer>] {
+                        $(
+                            $first_name: std::sync::Arc::new(tokio::sync::RwLock::new($first_name)),
+                            $(
+                                $mid_name: std::sync::Arc::new(tokio::sync::RwLock::new($mid_name)),
+                            )*
+                            $last_name: std::sync::Arc::new(tokio::sync::RwLock::new($last_name)),
+                        )*
+                        $(
+                            $solo_name: std::sync::Arc::new(tokio::sync::RwLock::new($solo_name)),
+                        )*
+                    }
+                }
+            }
+
+            #[allow(dead_code)]
+            impl $name {
+                pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock<[<$name Initializer>]>>) -> Self {
+                    $name {
+                        next_try_pop_index: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
+                        $(
+                            $first_name: $first::new(initializer.read().await.$first_name.clone()).await,
+                            $(
+                                $mid_name: $mid::new(initializer.read().await.$mid_name.clone()).await,
+                            )*
+                            $last_name: $last::new(initializer.read().await.$last_name.clone()).await,
+                        )*
+                        $(
+                            $solo_name: $solo::new(initializer.read().await.$solo_name.clone()).await,
+                        )*
+                    }
+                }
+                $(
+                    async fn [<process_ $first_name>](&self) -> bool {
+                        let mut is_at_least_one_processed = true;
+                        let mut is_last_processed = false;
+                        while is_at_least_one_processed && !is_last_processed {
+                            is_at_least_one_processed = self.$first_name.process().await;
+                            let next_input = self.$first_name.try_pop().await;
+                            $(
+                                if let Some(next_input) = next_input {
+                                    self.$mid_name.push(next_input).await;
+                                }
+                                is_at_least_one_processed |= self.$mid_name.process().await;
+                                let next_input = self.$mid_name.try_pop().await;
+                            )*
+                            if let Some(next_input) = next_input {
+                                self.$last_name.push(next_input).await;
+                            }
+                            is_last_processed = self.$last_name.process().await;
+                        }
+                        return is_last_processed;
+                    }
+                )*
+                async fn process_all_join(&self) -> bool {
+                    let bool_tuple = futures::join!($(self.$solo_name.process(),)*$(self.[<process_ $first_name>]()),*);
+                    let false_tuple = ($($bool,)*);
+                    return bool_tuple != false_tuple;
+                }
+                async fn process_all_free(&self) -> bool {
+                    todo!();
+                }
+                async fn process_all_unique(&self) -> bool {
+                    todo!();
+                }
+                async fn process_one_join(&self) -> bool {
+                    todo!();
+                }
+                async fn process_one_free(&self) -> bool {
+                    todo!();
+                }
+                async fn process_one_unique(&self) -> bool {
+                    todo!();
+                }
+                async fn process_random_join(&self) -> bool {
+                    todo!();
+                }
+                async fn process_random_free(&self) -> bool {
+                    todo!();
+                }
+                async fn process_random_unique(&self) -> bool {
+                    todo!();
+                }
+            }
+
+            #[async_trait::async_trait]
+            impl $crate::chain::ChainLink for $name {
+                type TInput = $from;
+                type TOutput = $to;
+
+                async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
+                    let mut push_futures = vec![];
+                    $(
+                        push_futures.push(self.$first_name.push(input.clone()));
+                    )*
+                    $(
+                        push_futures.push(self.$solo_name.push(input.clone()));
+                    )*
+                    futures::future::join_all(push_futures).await;
+                }
+                async fn push_raw(&self, input: $from) -> () {
+                    self.push(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
+                }
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
+                    let mut futures = vec![];
+                    $(
+                        futures.push(self.$first_name.push_if_empty(input.clone()));
+                    )*
+                    $(
+                        futures.push(self.$solo_name.push_if_empty(input.clone()));
+                    )*
+                    futures::future::join_all(futures).await;
+                }
+                async fn push_raw_if_empty(&self, input: $from) -> () {
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
+                }
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<$to>>> {
+                    
+                    let mut locked_next_try_pop_index = self.next_try_pop_index.lock().await;
+                    let mut try_pop_attempt_count: usize = 0;
+                    while try_pop_attempt_count < ($count) {
+
+                        // get the next index to check
+                        let next_try_pop_index: usize = *locked_next_try_pop_index;
+                        if next_try_pop_index + 1 == ($count) {
+                            *locked_next_try_pop_index = 0;
+                        }
+                        else {
+                            *locked_next_try_pop_index = next_try_pop_index + 1;
+                        }
+
+                        // get the popped output for the current index
+                        let output;
+                        if false {
+                            panic!("False should not be true.");
+                        }
+                        $(
+                            else if next_try_pop_index == ($solo_index) {
+                                output = self.$solo_name.try_pop().await;
+                            }
+                        )*
+                        $(
+                            else if next_try_pop_index == ($chain_index) {
+                                output = self.$last_name.try_pop().await;
+                            }
+                        )*
+                        else {
+                            panic!("Index out of bound: next_try_pop_index");
+                        }
+
+                        if output.is_some() {
+                            return output;
+                        }
+
+                        try_pop_attempt_count += 1;
+                    }
+
+                    // if the parallel set of ChainLinks have been exhausted
+                    return None;
+                }
+                async fn process(&self) -> bool {
+                    let mode = stringify!($mode);
+                    let choice = stringify!($choice);
+                    match mode {
+                        "join" => {
+                            match choice {
+                                "all" => {
+                                    self.process_all_join().await
+                                },
+                                "one" => {
+                                    self.process_one_join().await
+                                },
+                                "random" => {
+                                    self.process_random_join().await
+                                }
+                                _ => {
+                                    panic!("Unexpected choice {}", choice);
+                                }
+                            }
+                        },
+                        "free" => {
+                            match choice {
+                                "all" => {
+                                    self.process_all_free().await
+                                },
+                                "one" => {
+                                    self.process_one_free().await
+                                },
+                                "random" => {
+                                    self.process_random_free().await
+                                }
+                                _ => {
+                                    panic!("Unexpected choice {}", choice);
+                                }
+                            }
+                        },
+                        "unique" => {
+                            match choice {
+                                "all" => {
+                                    self.process_all_unique().await
+                                },
+                                "one" => {
+                                    self.process_one_unique().await
+                                },
+                                "random" => {
+                                    self.process_random_unique().await
+                                }
+                                _ => {
+                                    panic!("Unexpected choice {}", choice);
+                                }
+                            }
+                        },
+                        _ => {
+                            panic!("Unexpected mode {}", mode);
+                        }
+                    }
+                }
+            }
         }
     };
 }
@@ -634,8 +877,7 @@ macro_rules! duplicate {
                     else {
                         self.inner_chainlinks
                             .iter()
-                            .enumerate()
-                            .for_each(|(i, c)| {
+                            .for_each(|c| {
                                 let inner_chainlink = c.clone();
                                 std::thread::spawn(move || {
                                     let tokio_runtime = tokio::runtime::Builder::new_current_thread()
