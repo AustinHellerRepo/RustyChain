@@ -150,8 +150,7 @@ mod etl {
             [
                 InsertCustomerIntoDatabase,
                 InsertCustomerIntoDatabase
-            ],
-            all join
+            ]: (all join)
         );
     }
 
@@ -164,8 +163,7 @@ mod etl {
             String => bool,
             [
                 ReadFromFile => ParseStringToCustomer => SeparateDatabaseSplitMerge
-            ],
-            all join
+            ]: (all join)
         );
     }
 }

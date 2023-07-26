@@ -231,8 +231,7 @@ mod work_order {
             OrderEvent => bool,
             [
                 WorkAssignmentManager => UnitOfWorkManager
-            ],
-            all join
+            ]: (all join)
         );
     }
 }

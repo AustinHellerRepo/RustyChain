@@ -105,7 +105,7 @@ macro_rules! chain_link {
 
 #[macro_export]
 macro_rules! chain {
-    ($name:ty, $from:ty => $to:ty, [$($($field:ty)=>*),*], $choice:ident $mode:ident) => {
+    ($name:ty, $from:ty => $to:ty, [$($($field:ty)=>*),*]: ($choice:ident $mode:ident)) => {
         chain!(apple $name, $from, $to, $choice, $mode, () (0) () () () () () () () () () () (x) $($($field)=>*),*);
     };
     // only one new solo type left

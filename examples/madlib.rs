@@ -93,8 +93,7 @@ mod madlib {
         Vec<MadlibPart> => String,
         [
             MadlibConstruction => CollectConstructedMadlibParts
-        ],
-        all join
+        ]: (all join)
     );
 }
 

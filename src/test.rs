@@ -52,16 +52,14 @@ mod test {
         SomeInput => SomeInput,
         [
             TestChainLink => StringToSomeInput
-        ],
-        all join
+        ]: (all join)
     );
 
     chain!(TripleTest,
         SomeInput => String,
         [
             TestChainLink => StringToSomeInput => TestChainLink
-        ],
-        all join
+        ]: (all join)
     );
 
     // chaining two chains
@@ -69,16 +67,14 @@ mod test {
         SomeInput => String,
         [
             ChainTest => TripleTest
-        ],
-        all join
+        ]: (all join)
     );
 
     chain!(ChainToChainToLink,
         SomeInput => SomeInput,
         [
             ChainTest => TripleTest => StringToSomeInput
-        ],
-        all join
+        ]: (all join)
     );
 
     chain_link!(StringToInt, input: String => i32, {
@@ -113,8 +109,7 @@ mod test {
         [
             StringToInt,
             StringPrint
-        ],
-        all join
+        ]: (all join)
     );
 
     chain!(SplitMergeMultiple,
@@ -123,8 +118,7 @@ mod test {
             StringToInt,
             SplitMergeTwoChainLinks,
             StringPrint
-        ],
-        all join
+        ]: (all join)
     );
 
     #[tokio::test(flavor = "multi_thread")]
@@ -442,112 +436,112 @@ mod test {
             }
         });
 
-        chain!(SoloAllJoin, String => String, [ToLower], all join);
-        chain!(TwoSplitAllJoin, String => String, [ToLower, ToUpper], all join);
-        chain!(ThreeSplitAllJoin, String => String, [ToLower, ToUpper, ToUpper], all join);
-        chain!(FourSplitAllJoin, String => String, [ToLower, ToUpper, ToUpper, ToLower], all join);
-        chain!(TwoChainAllJoin, String => String, [ToLower => ToUpper], all join);
-        chain!(ThreeChainAllJoin, String => String, [ToLower => ToUpper => ToUpper], all join);
-        chain!(FourChainAllJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower], all join);
-        chain!(FourChainSoloAllJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], all join);
-        chain!(FourChainTwoChainAllJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], all join);
-        chain!(FourChainSoloTwoChainAllJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], all join);
-        chain!(TwoChainTwoChainAllJoin, String => String, [ToLower => ToUpper, ToUpper => ToLower], all join);
+        chain!(SoloAllJoin, String => String, [ToLower]: (all join));
+        chain!(TwoSplitAllJoin, String => String, [ToLower, ToUpper]: (all join));
+        chain!(ThreeSplitAllJoin, String => String, [ToLower, ToUpper, ToUpper]: (all join));
+        chain!(FourSplitAllJoin, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (all join));
+        chain!(TwoChainAllJoin, String => String, [ToLower => ToUpper]: (all join));
+        chain!(ThreeChainAllJoin, String => String, [ToLower => ToUpper => ToUpper]: (all join));
+        chain!(FourChainAllJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (all join));
+        chain!(FourChainSoloAllJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (all join));
+        chain!(FourChainTwoChainAllJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (all join));
+        chain!(FourChainSoloTwoChainAllJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (all join));
+        chain!(TwoChainTwoChainAllJoin, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (all join));
 
-        chain!(SoloOneJoin, String => String, [ToLower], one join);
-        chain!(TwoSplitOneJoin, String => String, [ToLower, ToUpper], one join);
-        chain!(ThreeSplitOneJoin, String => String, [ToLower, ToUpper, ToUpper], one join);
-        chain!(FourSplitOneJoin, String => String, [ToLower, ToUpper, ToUpper, ToLower], one join);
-        chain!(TwoChainOneJoin, String => String, [ToLower => ToUpper], one join);
-        chain!(ThreeChainOneJoin, String => String, [ToLower => ToUpper => ToUpper], one join);
-        chain!(FourChainOneJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower], one join);
-        chain!(FourChainSoloOneJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], one join);
-        chain!(FourChainTwoChainOneJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], one join);
-        chain!(FourChainSoloTwoChainOneJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], one join);
-        chain!(TwoChainTwoChainOneJoin, String => String, [ToLower => ToUpper, ToUpper => ToLower], one join);
+        chain!(SoloOneJoin, String => String, [ToLower]: (one join));
+        chain!(TwoSplitOneJoin, String => String, [ToLower, ToUpper]: (one join));
+        chain!(ThreeSplitOneJoin, String => String, [ToLower, ToUpper, ToUpper]: (one join));
+        chain!(FourSplitOneJoin, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (one join));
+        chain!(TwoChainOneJoin, String => String, [ToLower => ToUpper]: (one join));
+        chain!(ThreeChainOneJoin, String => String, [ToLower => ToUpper => ToUpper]: (one join));
+        chain!(FourChainOneJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (one join));
+        chain!(FourChainSoloOneJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (one join));
+        chain!(FourChainTwoChainOneJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (one join));
+        chain!(FourChainSoloTwoChainOneJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (one join));
+        chain!(TwoChainTwoChainOneJoin, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (one join));
 
-        chain!(SoloRandomJoin, String => String, [ToLower], random join);
-        chain!(TwoSplitRandomJoin, String => String, [ToLower, ToUpper], random join);
-        chain!(ThreeSplitRandomJoin, String => String, [ToLower, ToUpper, ToUpper], random join);
-        chain!(FourSplitRandomJoin, String => String, [ToLower, ToUpper, ToUpper, ToLower], random join);
-        chain!(TwoChainRandomJoin, String => String, [ToLower => ToUpper], random join);
-        chain!(ThreeChainRandomJoin, String => String, [ToLower => ToUpper => ToUpper], random join);
-        chain!(FourChainRandomJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower], random join);
-        chain!(FourChainSoloRandomJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], random join);
-        chain!(FourChainTwoChainRandomJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], random join);
-        chain!(FourChainSoloTwoChainRandomJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], random join);
-        chain!(TwoChainTwoChainRandomJoin, String => String, [ToLower => ToUpper, ToUpper => ToLower], random join);
+        chain!(SoloRandomJoin, String => String, [ToLower]: (random join));
+        chain!(TwoSplitRandomJoin, String => String, [ToLower, ToUpper]: (random join));
+        chain!(ThreeSplitRandomJoin, String => String, [ToLower, ToUpper, ToUpper]: (random join));
+        chain!(FourSplitRandomJoin, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (random join));
+        chain!(TwoChainRandomJoin, String => String, [ToLower => ToUpper]: (random join));
+        chain!(ThreeChainRandomJoin, String => String, [ToLower => ToUpper => ToUpper]: (random join));
+        chain!(FourChainRandomJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (random join));
+        chain!(FourChainSoloRandomJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (random join));
+        chain!(FourChainTwoChainRandomJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (random join));
+        chain!(FourChainSoloTwoChainRandomJoin, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (random join));
+        chain!(TwoChainTwoChainRandomJoin, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (random join));
 
-        chain!(SoloAllFree, String => String, [ToLower], all free);
-        chain!(TwoSplitAllFree, String => String, [ToLower, ToUpper], all free);
-        chain!(ThreeSplitAllFree, String => String, [ToLower, ToUpper, ToUpper], all free);
-        chain!(FourSplitAllFree, String => String, [ToLower, ToUpper, ToUpper, ToLower], all free);
-        chain!(TwoChainAllFree, String => String, [ToLower => ToUpper], all free);
-        chain!(ThreeChainAllFree, String => String, [ToLower => ToUpper => ToUpper], all free);
-        chain!(FourChainAllFree, String => String, [ToLower => ToUpper => ToUpper => ToLower], all free);
-        chain!(FourChainSoloAllFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], all free);
-        chain!(FourChainTwoChainAllFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], all free);
-        chain!(FourChainSoloTwoChainAllFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], all free);
-        chain!(TwoChainTwoChainAllFree, String => String, [ToLower => ToUpper, ToUpper => ToLower], all free);
+        chain!(SoloAllFree, String => String, [ToLower]: (all free));
+        chain!(TwoSplitAllFree, String => String, [ToLower, ToUpper]: (all free));
+        chain!(ThreeSplitAllFree, String => String, [ToLower, ToUpper, ToUpper]: (all free));
+        chain!(FourSplitAllFree, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (all free));
+        chain!(TwoChainAllFree, String => String, [ToLower => ToUpper]: (all free));
+        chain!(ThreeChainAllFree, String => String, [ToLower => ToUpper => ToUpper]: (all free));
+        chain!(FourChainAllFree, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (all free));
+        chain!(FourChainSoloAllFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (all free));
+        chain!(FourChainTwoChainAllFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (all free));
+        chain!(FourChainSoloTwoChainAllFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (all free));
+        chain!(TwoChainTwoChainAllFree, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (all free));
 
-        chain!(SoloOneFree, String => String, [ToLower], one free);
-        chain!(TwoSplitOneFree, String => String, [ToLower, ToUpper], one free);
-        chain!(ThreeSplitOneFree, String => String, [ToLower, ToUpper, ToUpper], one free);
-        chain!(FourSplitOneFree, String => String, [ToLower, ToUpper, ToUpper, ToLower], one free);
-        chain!(TwoChainOneFree, String => String, [ToLower => ToUpper], one free);
-        chain!(ThreeChainOneFree, String => String, [ToLower => ToUpper => ToUpper], one free);
-        chain!(FourChainOneFree, String => String, [ToLower => ToUpper => ToUpper => ToLower], one free);
-        chain!(FourChainSoloOneFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], one free);
-        chain!(FourChainTwoChainOneFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], one free);
-        chain!(FourChainSoloTwoChainOneFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], one free);
-        chain!(TwoChainTwoChainOneFree, String => String, [ToLower => ToUpper, ToUpper => ToLower], one free);
+        chain!(SoloOneFree, String => String, [ToLower]: (one free));
+        chain!(TwoSplitOneFree, String => String, [ToLower, ToUpper]: (one free));
+        chain!(ThreeSplitOneFree, String => String, [ToLower, ToUpper, ToUpper]: (one free));
+        chain!(FourSplitOneFree, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (one free));
+        chain!(TwoChainOneFree, String => String, [ToLower => ToUpper]: (one free));
+        chain!(ThreeChainOneFree, String => String, [ToLower => ToUpper => ToUpper]: (one free));
+        chain!(FourChainOneFree, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (one free));
+        chain!(FourChainSoloOneFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (one free));
+        chain!(FourChainTwoChainOneFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (one free));
+        chain!(FourChainSoloTwoChainOneFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (one free));
+        chain!(TwoChainTwoChainOneFree, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (one free));
 
-        chain!(SoloRandomFree, String => String, [ToLower], random free);
-        chain!(TwoSplitRandomFree, String => String, [ToLower, ToUpper], random free);
-        chain!(ThreeSplitRandomFree, String => String, [ToLower, ToUpper, ToUpper], random free);
-        chain!(FourSplitRandomFree, String => String, [ToLower, ToUpper, ToUpper, ToLower], random free);
-        chain!(TwoChainRandomFree, String => String, [ToLower => ToUpper], random free);
-        chain!(ThreeChainRandomFree, String => String, [ToLower => ToUpper => ToUpper], random free);
-        chain!(FourChainRandomFree, String => String, [ToLower => ToUpper => ToUpper => ToLower], random free);
-        chain!(FourChainSoloRandomFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], random free);
-        chain!(FourChainTwoChainRandomFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], random free);
-        chain!(FourChainSoloTwoChainRandomFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], random free);
-        chain!(TwoChainTwoChainRandomFree, String => String, [ToLower => ToUpper, ToUpper => ToLower], random free);
+        chain!(SoloRandomFree, String => String, [ToLower]: (random free));
+        chain!(TwoSplitRandomFree, String => String, [ToLower, ToUpper]: (random free));
+        chain!(ThreeSplitRandomFree, String => String, [ToLower, ToUpper, ToUpper]: (random free));
+        chain!(FourSplitRandomFree, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (random free));
+        chain!(TwoChainRandomFree, String => String, [ToLower => ToUpper]: (random free));
+        chain!(ThreeChainRandomFree, String => String, [ToLower => ToUpper => ToUpper]: (random free));
+        chain!(FourChainRandomFree, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (random free));
+        chain!(FourChainSoloRandomFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (random free));
+        chain!(FourChainTwoChainRandomFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (random free));
+        chain!(FourChainSoloTwoChainRandomFree, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (random free));
+        chain!(TwoChainTwoChainRandomFree, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (random free));
 
-        chain!(SoloAllUnique, String => String, [ToLower], all unique);
-        chain!(TwoSplitAllUnique, String => String, [ToLower, ToUpper], all unique);
-        chain!(ThreeSplitAllUnique, String => String, [ToLower, ToUpper, ToUpper], all unique);
-        chain!(FourSplitAllUnique, String => String, [ToLower, ToUpper, ToUpper, ToLower], all unique);
-        chain!(TwoChainAllUnique, String => String, [ToLower => ToUpper], all unique);
-        chain!(ThreeChainAllUnique, String => String, [ToLower => ToUpper => ToUpper], all unique);
-        chain!(FourChainAllUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower], all unique);
-        chain!(FourChainSoloAllUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], all unique);
-        chain!(FourChainTwoChainAllUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], all unique);
-        chain!(FourChainSoloTwoChainAllUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], all unique);
-        chain!(TwoChainTwoChainAllUnique, String => String, [ToLower => ToUpper, ToUpper => ToLower], all unique);
+        chain!(SoloAllUnique, String => String, [ToLower]: (all unique));
+        chain!(TwoSplitAllUnique, String => String, [ToLower, ToUpper]: (all unique));
+        chain!(ThreeSplitAllUnique, String => String, [ToLower, ToUpper, ToUpper]: (all unique));
+        chain!(FourSplitAllUnique, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (all unique));
+        chain!(TwoChainAllUnique, String => String, [ToLower => ToUpper]: (all unique));
+        chain!(ThreeChainAllUnique, String => String, [ToLower => ToUpper => ToUpper]: (all unique));
+        chain!(FourChainAllUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (all unique));
+        chain!(FourChainSoloAllUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (all unique));
+        chain!(FourChainTwoChainAllUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (all unique));
+        chain!(FourChainSoloTwoChainAllUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (all unique));
+        chain!(TwoChainTwoChainAllUnique, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (all unique));
 
-        chain!(SoloOneUnique, String => String, [ToLower], one unique);
-        chain!(TwoSplitOneUnique, String => String, [ToLower, ToUpper], one unique);
-        chain!(ThreeSplitOneUnique, String => String, [ToLower, ToUpper, ToUpper], one unique);
-        chain!(FourSplitOneUnique, String => String, [ToLower, ToUpper, ToUpper, ToLower], one unique);
-        chain!(TwoChainOneUnique, String => String, [ToLower => ToUpper], one unique);
-        chain!(ThreeChainOneUnique, String => String, [ToLower => ToUpper => ToUpper], one unique);
-        chain!(FourChainOneUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower], one unique);
-        chain!(FourChainSoloOneUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], one unique);
-        chain!(FourChainTwoChainOneUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], one unique);
-        chain!(FourChainSoloTwoChainOneUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], one unique);
-        chain!(TwoChainTwoChainOneUnique, String => String, [ToLower => ToUpper, ToUpper => ToLower], one unique);
+        chain!(SoloOneUnique, String => String, [ToLower]: (one unique));
+        chain!(TwoSplitOneUnique, String => String, [ToLower, ToUpper]: (one unique));
+        chain!(ThreeSplitOneUnique, String => String, [ToLower, ToUpper, ToUpper]: (one unique));
+        chain!(FourSplitOneUnique, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (one unique));
+        chain!(TwoChainOneUnique, String => String, [ToLower => ToUpper]: (one unique));
+        chain!(ThreeChainOneUnique, String => String, [ToLower => ToUpper => ToUpper]: (one unique));
+        chain!(FourChainOneUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (one unique));
+        chain!(FourChainSoloOneUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (one unique));
+        chain!(FourChainTwoChainOneUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (one unique));
+        chain!(FourChainSoloTwoChainOneUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (one unique));
+        chain!(TwoChainTwoChainOneUnique, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (one unique));
 
-        chain!(SoloRandomUnique, String => String, [ToLower], random unique);
-        chain!(TwoSplitRandomUnique, String => String, [ToLower, ToUpper], random unique);
-        chain!(ThreeSplitRandomUnique, String => String, [ToLower, ToUpper, ToUpper], random unique);
-        chain!(FourSplitRandomUnique, String => String, [ToLower, ToUpper, ToUpper, ToLower], random unique);
-        chain!(TwoChainRandomUnique, String => String, [ToLower => ToUpper], random unique);
-        chain!(ThreeChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper], random unique);
-        chain!(FourChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower], random unique);
-        chain!(FourChainSoloRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower], random unique);
-        chain!(FourChainTwoChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower], random unique);
-        chain!(FourChainSoloTwoChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower], random unique);
-        chain!(TwoChainTwoChainRandomUnique, String => String, [ToLower => ToUpper, ToUpper => ToLower], random unique);
+        chain!(SoloRandomUnique, String => String, [ToLower]: (random unique));
+        chain!(TwoSplitRandomUnique, String => String, [ToLower, ToUpper]: (random unique));
+        chain!(ThreeSplitRandomUnique, String => String, [ToLower, ToUpper, ToUpper]: (random unique));
+        chain!(FourSplitRandomUnique, String => String, [ToLower, ToUpper, ToUpper, ToLower]: (random unique));
+        chain!(TwoChainRandomUnique, String => String, [ToLower => ToUpper]: (random unique));
+        chain!(ThreeChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper]: (random unique));
+        chain!(FourChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower]: (random unique));
+        chain!(FourChainSoloRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower]: (random unique));
+        chain!(FourChainTwoChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToLower => ToLower]: (random unique));
+        chain!(FourChainSoloTwoChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (random unique));
+        chain!(TwoChainTwoChainRandomUnique, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (random unique));
     }
 }

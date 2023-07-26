@@ -141,8 +141,7 @@ mod etl {
             String => bool,
             [
                 ReadFromFile => ParseStringToCustomer => InsertCustomerIntoDatabase
-            ],
-            all join
+            ]: (all join)
         );
     }
 }

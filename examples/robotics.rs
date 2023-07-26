@@ -324,8 +324,7 @@ mod robotics {
             [
                 CameraSensor,
                 ControllerSensor
-            ],
-            all unique
+            ]: (all unique)
         );
     }
 
@@ -337,8 +336,7 @@ mod robotics {
             () => bool,
             [
                 SensorySplit => SensorProcessor => RobotInterface
-            ],
-            all join
+            ]: (all join)
         );
     }
 }
