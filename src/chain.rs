@@ -184,14 +184,14 @@ macro_rules! new_chain {
                 next_try_pop_index: std::sync::Arc<tokio::sync::Mutex<usize>>,
                 // for every split
                 $(
-                    $first_name: $first,
+                    $first_name: std::sync::Arc<$first>,
                     $(
-                        $mid_name: $mid,
+                        $mid_name: std::sync::Arc<$mid>,
                     )*
-                    $last_name: $last,
+                    $last_name: std::sync::Arc<$last>,
                 )*
                 $(
-                    $solo_name: $solo,
+                    $solo_name: std::sync::Arc<$solo>,
                 )*
             }
 
@@ -233,14 +233,14 @@ macro_rules! new_chain {
                     $name {
                         next_try_pop_index: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
                         $(
-                            $first_name: $first::new(initializer.read().await.$first_name.clone()).await,
+                            $first_name: std::sync::Arc::new($first::new(initializer.read().await.$first_name.clone()).await),
                             $(
-                                $mid_name: $mid::new(initializer.read().await.$mid_name.clone()).await,
+                                $mid_name: std::sync::Arc::new($mid::new(initializer.read().await.$mid_name.clone()).await),
                             )*
-                            $last_name: $last::new(initializer.read().await.$last_name.clone()).await,
+                            $last_name: std::sync::Arc::new($last::new(initializer.read().await.$last_name.clone()).await),
                         )*
                         $(
-                            $solo_name: $solo::new(initializer.read().await.$solo_name.clone()).await,
+                            $solo_name: std::sync::Arc::new($solo::new(initializer.read().await.$solo_name.clone()).await),
                         )*
                     }
                 }
@@ -266,13 +266,69 @@ macro_rules! new_chain {
                         return is_last_processed;
                     }
                 )*
+                async fn process_chain(chainlinks: Vec<Arc<dyn ChainLink<TInput = $from, TOutput = $to> + Send + Sync>>) -> bool {
+                    let mut is_at_least_one_processed = true;
+                    let mut is_last_processed = false;
+                    while is_at_least_one_processed && !is_last_processed {
+                        is_at_least_one_processed = chainlinks[0].process().await;
+                        let mut next_input = chainlinks[0].try_pop().await;
+                        for index in 1..(chainlinks.len() - 1) {
+                            if let Some(next_input) = next_input {
+                                chainlinks[index].push(next_input).await;
+                            }
+                            is_at_least_one_processed |= chainlinks[index].process().await;
+                            next_input = chainlinks[index].try_pop().await;
+                        }
+                        if let Some(next_input) = next_input {
+                            chainlinks[chainlinks.len() - 1].push(next_input).await;
+                        }
+                        is_last_processed = chainlinks[chainlinks.len() - 1].process().await;
+                    }
+                    return is_last_processed;
+                }
                 async fn process_all_join(&self) -> bool {
                     let bool_tuple = futures::join!($(self.$solo_name.process(),)*$(self.[<process_ $first_name>]()),*);
                     let false_tuple = ($($bool,)*);
                     return bool_tuple != false_tuple;
                 }
                 async fn process_all_free(&self) -> bool {
-                    todo!();
+                    $(
+                        {
+                            let chainlinks: Vec<Arc<dyn ChainLink<TInput = $from, TOutput = $to> + Send + Sync>> = vec![
+                                self.$first_name.clone(),
+                                $(
+                                    self.$mid_name.clone(),
+                                )*
+                                self.$last_name.clone()
+                            ];
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    $name::process_chain(chainlinks).await;
+                                });
+                            });
+                        }
+                    )*
+                    $(
+                        {
+                            let chainlink = self.$solo_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    chainlink.process().await;
+                                });
+                            });
+                        }
+                    )*
+                    return false;
                 }
                 async fn process_all_unique(&self) -> bool {
                     todo!();
