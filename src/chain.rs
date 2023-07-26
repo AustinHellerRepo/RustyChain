@@ -314,15 +314,13 @@ macro_rules! chain {
                     return bool_tuple != false_tuple;
                 }
                 async fn process_all_free(&self) -> bool {
-                    {
-                        $(
+                    $(
+                        {
                             let $first_name = self.$first_name.clone();
                             $(
                                 let $mid_name = self.$mid_name.clone();
                             )*
                             let $last_name = self.$last_name.clone();
-                        )*
-                        $(
                             std::thread::spawn(move || {
                                 let tokio_runtime = tokio::runtime::Builder::new_current_thread()
                                     .enable_time()
@@ -349,8 +347,8 @@ macro_rules! chain {
                                     }
                                 });
                             });
-                        )*
-                    }
+                        }
+                    )*
                     $(
                         {
                             let $solo_name = self.$solo_name.clone();
