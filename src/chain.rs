@@ -180,9 +180,18 @@ macro_rules! new_chain {
 
             #[allow(dead_code)]
             pub struct $name {
-                // for internal functionality
+                // necessary for try_pop cycling
                 next_try_pop_index: std::sync::Arc<tokio::sync::Mutex<usize>>,
-                // for every split
+                // necessary for unique determination
+                $(
+                    [<is_running_ $first_name>]: std::sync::Arc<tokio::sync::Mutex<bool>>,
+                )*
+                $(
+                    [<is_running_ $solo_name>]: std::sync::Arc<tokio::sync::Mutex<bool>>,
+                )*
+                // necessary for processing one chainlink
+                next_process_field_index: std::sync::Arc<tokio::sync::Mutex<usize>>,
+                // each internal ChainLink
                 $(
                     $first_name: std::sync::Arc<$first>,
                     $(
@@ -232,6 +241,13 @@ macro_rules! new_chain {
                 pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock<[<$name Initializer>]>>) -> Self {
                     $name {
                         next_try_pop_index: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
+                        $(
+                            [<is_running_ $first_name>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
+                        )*
+                        $(
+                            [<is_running_ $solo_name>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
+                        )*
+                        next_process_field_index: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
                         $(
                             $first_name: std::sync::Arc::new($first::new(initializer.read().await.$first_name.clone()).await),
                             $(
@@ -335,25 +351,410 @@ macro_rules! new_chain {
                     return false;
                 }
                 async fn process_all_unique(&self) -> bool {
-                    todo!();
+                    $(
+                        {
+                            let mut [<locked_is_running_ $first_name>] = self.[<is_running_ $first_name>].lock().await;
+                            if !*[<locked_is_running_ $first_name>] {
+                                *[<locked_is_running_ $first_name>] = true;
+                                let chainlinks: Vec<Arc<dyn ChainLink<TInput = $from, TOutput = $to> + Send + Sync>> = vec![
+                                    self.$first_name.clone(),
+                                    $(
+                                        self.$mid_name.clone(),
+                                    )*
+                                    self.$last_name.clone()
+                                ];
+                                let [<is_running_ $first_name>] = self.[<is_running_ $first_name>].clone();
+                                std::thread::spawn(move || {
+                                    let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                        .enable_time()
+                                        .build()
+                                        .unwrap();
+
+                                    tokio_runtime.block_on(async {
+                                        $name::process_chain(chainlinks).await;
+                                        *[<is_running_ $first_name>].lock().await = false;
+                                    });
+                                });
+                            }
+                        }
+                    )*
+                    $(
+                        {
+                            let mut [<locked_is_running_ $solo_name>] = self.[<is_running_ $solo_name>].lock().await;
+                            if !*[<locked_is_running_ $solo_name>] {
+                                *[<locked_is_running_ $solo_name>] = true;
+                                let chainlink = self.$solo_name.clone();
+                                let [<is_running_ $solo_name>] = self.[<is_running_ $solo_name>].clone();
+                                std::thread::spawn(move || {
+                                    let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                        .enable_time()
+                                        .build()
+                                        .unwrap();
+
+                                    tokio_runtime.block_on(async {
+                                        chainlink.process().await;
+                                        *[<is_running_ $solo_name>].lock().await = false;
+                                    });
+                                });
+                            }
+                        }
+                    )*
+                    return false;
                 }
                 async fn process_one_join(&self) -> bool {
-                    todo!();
+                    // get the next field to process
+                    let next_process_field_index;
+                    {
+                        let mut locked_next_process_field_index = self.next_process_field_index.lock().await;
+                        next_process_field_index = *locked_next_process_field_index;
+                        if next_process_field_index + 1 == ($count) {
+                            *locked_next_process_field_index = 0;
+                        }
+                        else {
+                            *locked_next_process_field_index = next_process_field_index + 1;
+                        }
+                    }
+
+                    // get the output for the current field index
+                    let output;
+                    if false {
+                        panic!("False should not be true.");
+                    }
+                    $(
+                        else if next_process_field_index == ($chain_index) {
+                            output = self.[<process_ $first_name>]().await;
+                        }
+                    )*
+                    $(
+                        else if next_process_field_index == ($solo_index) {
+                            output = self.$solo_name.process().await;
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_process_field_index");
+                    }
+                    return output;
                 }
                 async fn process_one_free(&self) -> bool {
-                    todo!();
+                    // get the next field to process
+                    let next_process_field_index;
+                    {
+                        let mut locked_next_process_field_index = self.next_process_field_index.lock().await;
+                        next_process_field_index = *locked_next_process_field_index;
+                        if next_process_field_index + 1 == ($count) {
+                            *locked_next_process_field_index = 0;
+                        }
+                        else {
+                            *locked_next_process_field_index = next_process_field_index + 1;
+                        }
+                    }
+
+                    // get the output for the current field index
+                    if false {
+                        panic!("False should not be true.");
+                    }
+                    $(
+                        else if next_process_field_index == ($chain_index) {
+                            let chainlinks: Vec<Arc<dyn ChainLink<TInput = $from, TOutput = $to> + Send + Sync>> = vec![
+                                self.$first_name.clone(),
+                                $(
+                                    self.$mid_name.clone(),
+                                )*
+                                self.$last_name.clone()
+                            ];
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    $name::process_chain(chainlinks).await;
+                                });
+                            });
+                        }
+                    )*
+                    $(
+                        else if next_process_field_index == ($solo_index) {
+                            let chainlink = self.$solo_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    chainlink.process().await;
+                                });
+                            });
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_process_field_index");
+                    }
+                    return false;
                 }
                 async fn process_one_unique(&self) -> bool {
-                    todo!();
+                    // iterate over all internal chainlinks, potentially
+                    for _ in 0..($count) {
+                        
+                        // get the next field to process
+                        let next_process_field_index;
+                        {
+                            let mut locked_next_process_field_index = self.next_process_field_index.lock().await;
+                            next_process_field_index = *locked_next_process_field_index;
+                            if next_process_field_index + 1 == ($count) {
+                                *locked_next_process_field_index = 0;
+                            }
+                            else {
+                                *locked_next_process_field_index = next_process_field_index + 1;
+                            }
+                        }
+
+                        // get the output for the current field index
+                        if false {
+                            panic!("False should not be true.");
+                        }
+                        $(
+                            else if next_process_field_index == ($chain_index) {
+                                let mut [<locked_is_running_ $first_name>] = self.[<is_running_ $first_name>].lock().await;
+                                if !*[<locked_is_running_ $first_name>] {
+                                    *[<locked_is_running_ $first_name>] = true;
+                                    let chainlinks: Vec<Arc<dyn ChainLink<TInput = $from, TOutput = $to> + Send + Sync>> = vec![
+                                        self.$first_name.clone(),
+                                        $(
+                                            self.$mid_name.clone(),
+                                        )*
+                                        self.$last_name.clone()
+                                    ];
+                                    let [<is_running_ $first_name>] = self.[<is_running_ $first_name>].clone();
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            $name::process_chain(chainlinks).await;
+                                            *[<is_running_ $first_name>].lock().await = false;
+                                        });
+                                    });
+
+                                    // only one thread is started
+                                    return false;
+                                }
+                            }
+                        )*
+                        $(
+                            else if next_process_field_index == ($solo_index) {
+                                let mut [<locked_is_running_ $solo_name>] = self.[<is_running_ $solo_name>].lock().await;
+                                if !*[<locked_is_running_ $solo_name>] {
+                                    *[<locked_is_running_ $solo_name>] = true;
+                                    let chainlink = self.$solo_name.clone();
+                                    let [<is_running_ $solo_name>] = self.[<is_running_ $solo_name>].clone();
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            chainlink.process().await;
+                                            *[<is_running_ $solo_name>].lock().await = false;
+                                        });
+                                    });
+
+                                    // only one thread is started
+                                    return false;
+                                }
+                            }
+                        )*
+                        else {
+                            panic!("Index out of bounds: next_process_field_index");
+                        }
+                    }
+
+                    // no threads were started because they were all already running
+                    return false;
                 }
                 async fn process_random_join(&self) -> bool {
-                    todo!();
+                    let next_process_field_index;
+                    {
+                        use rand::Rng;
+
+                        // get the next field to process
+                        let mut rng = rand::thread_rng();
+                        next_process_field_index = rng.gen_range(0..($count));
+                    }
+
+                    // get the output for the current field index
+                    let output;
+                    if false {
+                        panic!("False should not be true.");
+                    }
+                    $(
+                        else if next_process_field_index == ($chain_index) {
+                            output = self.[<process_ $first_name>]().await;
+                        }
+                    )*
+                    $(
+                        else if next_process_field_index == ($solo_index) {
+                            output = self.$solo_name.process().await;
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_process_field_index");
+                    }
+                    return output;
                 }
                 async fn process_random_free(&self) -> bool {
-                    todo!();
+                    let next_process_field_index;
+                    {
+                        use rand::Rng;
+
+                        // get the next field to process
+                        let mut rng = rand::thread_rng();
+                        next_process_field_index = rng.gen_range(0..($count));
+                    }
+
+                    // get the output for the current field index
+                    if false {
+                        panic!("False should not be true.");
+                    }
+                    $(
+                        else if next_process_field_index == ($chain_index) {
+                            let chainlinks: Vec<Arc<dyn ChainLink<TInput = $from, TOutput = $to> + Send + Sync>> = vec![
+                                self.$first_name.clone(),
+                                $(
+                                    self.$mid_name.clone(),
+                                )*
+                                self.$last_name.clone()
+                            ];
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    $name::process_chain(chainlinks).await;
+                                });
+                            });
+                        }
+                    )*
+                    $(
+                        else if next_process_field_index == ($solo_index) {
+                            let chainlink = self.$solo_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    chainlink.process().await;
+                                });
+                            });
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_process_field_index");
+                    }
+                    return false;
                 }
                 async fn process_random_unique(&self) -> bool {
-                    todo!();
+                    
+                    // create a mapping of indexes to attempt before exhausting all indexes
+                    let mut mapped_next_process_field_index: Vec<usize> = (0..($count)).collect();
+                    {
+                        use rand::seq::SliceRandom;
+
+                        mapped_next_process_field_index.shuffle(&mut rand::thread_rng());
+                    }
+
+                    // cycle over all field indexes until one is found
+                    for _ in 0..($count) {
+
+                        // get the next field to process
+                        let next_process_field_index;
+                        {
+                            let mut locked_next_process_field_index = self.next_process_field_index.lock().await;
+                            next_process_field_index = *locked_next_process_field_index;
+                            if next_process_field_index + 1 == ($count) {
+                                *locked_next_process_field_index = 0;
+                            }
+                            else {
+                                *locked_next_process_field_index = next_process_field_index + 1;
+                            }
+                        }
+
+                        let next_process_field_index = mapped_next_process_field_index[next_process_field_index];
+
+                        // get the output for the current field index
+                        if false {
+                            panic!("False should not be true.");
+                        }
+                        $(
+                            else if next_process_field_index == ($chain_index) {
+                                let mut [<locked_is_running_ $first_name>] = self.[<is_running_ $first_name>].lock().await;
+                                if !*[<locked_is_running_ $first_name>] {
+                                    *[<locked_is_running_ $first_name>] = true;
+                                    let chainlinks: Vec<Arc<dyn ChainLink<TInput = $from, TOutput = $to> + Send + Sync>> = vec![
+                                        self.$first_name.clone(),
+                                        $(
+                                            self.$mid_name.clone(),
+                                        )*
+                                        self.$last_name.clone()
+                                    ];
+                                    let [<is_running_ $first_name>] = self.[<is_running_ $first_name>].clone();
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            $name::process_chain(chainlinks).await;
+                                            *[<is_running_ $first_name>].lock().await = false;
+                                        });
+                                    });
+
+                                    // only one thread is started
+                                    return false;
+                                }
+                            }
+                        )*
+                        $(
+                            else if next_process_field_index == ($solo_index) {
+                                let mut [<locked_is_running_ $solo_name>] = self.[<is_running_ $solo_name>].lock().await;
+                                if !*[<locked_is_running_ $solo_name>] {
+                                    *[<locked_is_running_ $solo_name>] = true;
+                                    let chainlink = self.$solo_name.clone();
+                                    let [<is_running_ $solo_name>] = self.[<is_running_ $solo_name>].clone();
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            chainlink.process().await;
+                                            *[<is_running_ $solo_name>].lock().await = false;
+                                        });
+                                    });
+
+                                    // only one thread is started
+                                    return false;
+                                }
+                            }
+                        )*
+                        else {
+                            panic!("Index out of bounds: next_process_field_index");
+                        }
+                    }
+
+                    // no threads were started because they were all already running
+                    return false;
                 }
             }
 
