@@ -55,3 +55,6 @@ I have always wanted highly testable code and to work in an environment where th
 
 - chain! parallel conditions
   - This would allow the `try_pop` from one `ChainLink` to make its way to different destination `ChainLink`s based on a conditional block per destination, allowing logical, asynchronous splitting of processing.
+
+- chain! nested sets
+  - The idea would be that you could do the following: chain!(SomeChain, String => String, [SomeChainLink => [OneSplit, AnotherSplit]: (one join) => FinalChainLink]: (all join))
