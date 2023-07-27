@@ -137,7 +137,12 @@ mod etl {
         use super::{read_file::{ReadFromFile, ReadFromFileInitializer}, parse::{ParseStringToCustomer, ParseStringToCustomerInitializer}, database::{InsertCustomerIntoDatabase, InsertCustomerIntoDatabaseInitializer}};
 
         // this single line creates the EtlProcess chain
-        chain!(EtlProcess, String => bool, ReadFromFile => ParseStringToCustomer => InsertCustomerIntoDatabase);
+        chain!(EtlProcess,
+            String => bool,
+            [
+                ReadFromFile => ParseStringToCustomer => InsertCustomerIntoDatabase
+            ]: (all join)
+        );
     }
 }
 

@@ -227,7 +227,12 @@ mod work_order {
         use super::{unit_of_work_manager::{UnitOfWorkManager, UnitOfWorkManagerInitializer}, work_assignment_manager::{WorkAssignmentManager, WorkAssignmentManagerInitializer}, model::OrderEvent};
 
         // the chain of processing from an order event to a processed work order
-        chain!(WorkProcessor, OrderEvent => bool, WorkAssignmentManager => UnitOfWorkManager);
+        chain!(WorkProcessor,
+            OrderEvent => bool,
+            [
+                WorkAssignmentManager => UnitOfWorkManager
+            ]: (all join)
+        );
     }
 }
 

@@ -29,6 +29,7 @@ macro_rules! chain_link {
                 )*
             }
 
+            #[allow(dead_code)]
             impl $type {
                 pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock::<[<$type Initializer>]>>) -> Self {
                     $type {
@@ -104,282 +105,279 @@ macro_rules! chain_link {
 
 #[macro_export]
 macro_rules! chain {
-    ($name:ty, $from:ty => $to:ty, $($field:ty)=>*) => {
-        chain!(first $name, $from, $to,       (x)              ()        ()                        $($field)=>*);
+    ($name:ty, $from:ty => $to:ty, [$($($field:ty)=>*),*]: ($choice:ident $mode:ident)) => {
+        chain!(apple $name, $from, $to, $choice, $mode, () (0) () () () () () () () () () () (x) $($($field)=>*),*);
     };
-    (first                    $name:ty, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty  ) => {
+    // only one new solo type left
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty) => {
         paste::paste! {
-            chain!(middle $name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*)      );
+            chain!(end $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)* [$index]) ($($chain_index_past)*) ($($solo)* [$next]) ($($solo_name)* [<$($prefix)* _ $next:snake>]) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*));
         }
     };
-    (first                    $name:ty, $from:ty, $to:ty, ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty =>   $($rest:ty)=>*) => {
+    // one solo type following by another set
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty, $($($rest:ty)=>*),*) => {
         paste::paste! {
-            chain!(middle $name, $from, $to, $next, [<$($prefix)* _ $next:snake>],  ($($prefix)* x ) ($($past)*) ($($past_type)*) $($rest)=>*      );
+            // since this is the end of a chain, the next $next will be the first or solo
+            chain!(apple $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)* [$index]) ($($chain_index_past)*) ($($solo)* [$next]) ($($solo_name)* [<$($prefix)* _ $next:snake>]) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x ) $($($rest)=>*),*);
         }
     };
-    // In the recursive case: append another `x` into our prefix.
-    (middle                    $name:ty, $from:ty, $to:ty, $first:ty, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ident) => {
+    // the first type following by a last type (no mid type) with no more types
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty) => {
         paste::paste! {
-            chain!(end $name, $from, $to, $first, $first_name, $next, [<$($prefix)* _ $next:snake>],   () ($($past)*) ($($past_type)*)    );
+            chain!(end $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)*) ($($chain_index_past)* [$index]) ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)* []) ($($mid_name)* []) ($($last)* [$another]) ($($last_name)* [<$($prefix)* x _ $another:snake>]));
         }
     };
-    (middle                    $name:ty, $from:ty, $to:ty, $first:ty, $first_name:ident,  ($($prefix:tt)*) ($($past:tt)*)     ($($past_type:tt)*)               $next:ty =>    $($rest:ty)=>*) => {
+    // the first type following by a last type (no mid type) with more types
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty, $($($rest:ty)=>*),*) => {
         paste::paste! {
-            chain!(middle $name, $from, $to, $first, $first_name,    ($($prefix)* x ) ($($past)* [$($prefix)* _ [<$next:snake>]]) ($($past_type)* [$next]) $($rest)=>*      );
+            chain!(apple $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)*) ($($chain_index_past)* [$index]) ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)* []) ($($mid_name)* []) ($($last)* [$another]) ($($last_name)* [<$($prefix)* x _ $another:snake>]) ($($prefix)* x x ) $($($rest)=>*),*);
         }
     };
+    // the first type following by a chain
+    (apple $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) $next:ty => $another:ty => $($($rest:ty)=>*),*) => {
+        paste::paste! {
+            chain!(carrot $name, $from, $to, $choice, $mode, ($($bool)* [false]) ($index + 1) ($($solo_index_past)*) ($($chain_index_past)* [$index]) ($($solo)*) ($($solo_name)*) ($($first)* [$next]) ($($first_name)* [<$($prefix)* _ $next:snake>]) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x x ) ([$another]) ([<$($prefix)* x _ $another:snake>]) $($($rest)=>*),*);
+        }
+    };
+    // the middle type of a chain after already being in the middle
+    (carrot $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty => $($($rest:ty)=>*),*) => {
+        paste::paste! {
+            chain!(carrot $name, $from, $to, $choice, $mode, ($($bool)*) ($index) ($($solo_index_past)*) ($($chain_index_past)*) ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)*) ($($mid_name)*) ($($last)*) ($($last_name)*) ($($prefix)* x) ($($past)* [$next]) ($($past_name)* [<$($prefix)* _ $next:snake>]) $($($rest)=>*),*);
+        }
+    };
+    // the last type of a chain after already being in the middle and there is another chain
+    (carrot $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty, $($($rest:ty)=>*),*) => {
+        paste::paste! {
+            chain!(apple $name, $from, $to, $choice, $mode, ($($bool)*) ($index) ($($solo_index_past)*) ($($chain_index_past)*) ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]) ($($prefix)* x ) $($($rest)=>*),*);
+        }
+    };
+    // the last type of a chain after already being in the middle and the end
+    (carrot $name:ty, $from:ty, $to:ty, $choice:ident, $mode:ident, ($($bool:tt)*) ($index:expr) ($($solo_index_past:tt)*) ($($chain_index_past:tt)*) ($($solo:tt)*) ($($solo_name:tt)*) ($($first:tt)*) ($($first_name:tt)*) ($($mid:tt)*) ($($mid_name:tt)*) ($($last:tt)*) ($($last_name:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_name:tt)*) $next:ty) => {
+        paste::paste! {
+            chain!(end $name, $from, $to, $choice, $mode, ($($bool)*) ($index) ($($solo_index_past)*) ($($chain_index_past)*) ($($solo)*) ($($solo_name)*) ($($first)*) ($($first_name)*) ($($mid)* [$($past)*]) ($($mid_name)* [$($past_name)*]) ($($last)* [$next]) ($($last_name)* [<$($prefix)* _ $next:snake>]));
+        }
+    };
+    (end
+        $name:ty,
+        $from:ty,
+        $to:ty,
+        $choice:ident,
+        $mode:ident,
+        ($([$bool:expr])*)
+        ($count:expr)
+        ($([$solo_index:expr])*)
+        ($([$chain_index:expr])*)
+        ($([$solo:ty])*)
+        ($($solo_name:ident)*)
+        ($([$first:ty])*)
+        ($($first_name:ident)*)
+        ($([$([$mid:ty])*])*)
+        ($([$($mid_name:ident)*])*)
+        ($([$last:ty])*)
+        ($($last_name:ident)*)) => {
+        
+        paste::paste! {
 
-    // When there are no fields remaining.
-    (end $name:ty, $from:ty, $to:ty, $first:ty, $first_name:ident, $last:ty, $last_name:ident,  () ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
-        paste::paste! {
-
+            #[allow(dead_code)]
             pub struct $name {
-                $first_name: $first,
+                // necessary for try_pop cycling
+                next_try_pop_index: std::sync::Arc<tokio::sync::Mutex<usize>>,
+                // necessary for unique determination
                 $(
-                    [<$($field)*>]: $field_type,
+                    [<is_running_ $first_name>]: std::sync::Arc<tokio::sync::Mutex<bool>>,
                 )*
-                $last_name: $last
+                $(
+                    [<is_running_ $solo_name>]: std::sync::Arc<tokio::sync::Mutex<bool>>,
+                )*
+                // necessary for processing one chainlink
+                next_process_field_index: std::sync::Arc<tokio::sync::Mutex<usize>>,
+                // each internal ChainLink
+                $(
+                    $first_name: std::sync::Arc<$first>,
+                    $(
+                        $mid_name: std::sync::Arc<$mid>,
+                    )*
+                    $last_name: std::sync::Arc<$last>,
+                )*
+                $(
+                    $solo_name: std::sync::Arc<$solo>,
+                )*
             }
 
+            #[allow(dead_code)]
             pub struct [<$name Initializer>] {
-                pub $first_name: std::sync::Arc<tokio::sync::RwLock<[<$first Initializer>]>>,
                 $(
-                    pub [<$($field)*>]: std::sync::Arc<tokio::sync::RwLock<[<$field_type Initializer>]>>,
+                    pub $first_name: std::sync::Arc<tokio::sync::RwLock<[<$first Initializer>]>>,
+                    $(
+                        pub $mid_name: std::sync::Arc<tokio::sync::RwLock<[<$mid Initializer>]>>,
+                    )*
+                    pub $last_name: std::sync::Arc<tokio::sync::RwLock<[<$last Initializer>]>>,
                 )*
-                pub $last_name: std::sync::Arc<tokio::sync::RwLock<[<$last Initializer>]>>
+                $(
+                    $solo_name: std::sync::Arc<tokio::sync::RwLock<[<$solo Initializer>]>>,
+                )*
             }
 
+            #[allow(dead_code)]
             impl [<$name Initializer>] {
-                pub fn new($first_name: [<$first Initializer>], $([<$($field)*>]: [<$field_type Initializer>],)* $last_name: [<$last Initializer>]) -> Self {
+                pub fn new($($first_name: [<$first Initializer>], $($mid_name: [<$mid Initializer>],)* $last_name: [<$last Initializer>],)* $($solo_name: [<$solo Initializer>],)*) -> Self {
                     [<$name Initializer>] {
-                        $first_name: std::sync::Arc::new(tokio::sync::RwLock::new($first_name)),
                         $(
-                            [<$($field)*>]: std::sync::Arc::new(tokio::sync::RwLock::new([<$($field)*>])),
+                            $first_name: std::sync::Arc::new(tokio::sync::RwLock::new($first_name)),
+                            $(
+                                $mid_name: std::sync::Arc::new(tokio::sync::RwLock::new($mid_name)),
+                            )*
+                            $last_name: std::sync::Arc::new(tokio::sync::RwLock::new($last_name)),
                         )*
-                        $last_name: std::sync::Arc::new(tokio::sync::RwLock::new($last_name))
+                        $(
+                            $solo_name: std::sync::Arc::new(tokio::sync::RwLock::new($solo_name)),
+                        )*
                     }
                 }
             }
 
+            #[allow(dead_code)]
             impl $name {
                 pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock<[<$name Initializer>]>>) -> Self {
                     $name {
-                        $first_name: $first::new(initializer.read().await.$first_name.clone()).await,
+                        next_try_pop_index: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
                         $(
-                            [<$($field)*>]: $field_type::new(initializer.read().await.[<$($field)*>].clone()).await,
+                            [<is_running_ $first_name>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
                         )*
-                        $last_name: $last::new(initializer.read().await.$last_name.clone()).await
-                    }
-                }
-                pub async fn new_raw(initializer: [<$name Initializer>]) -> Self {
-                    $name::new(std::sync::Arc::new(tokio::sync::RwLock::new(initializer))).await
-                }
-            }
-
-            #[async_trait::async_trait]
-            impl $crate::chain::ChainLink for $name {
-                type TInput = $from;
-                type TOutput = $to;
-
-                async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
-                    self.$first_name.push(input).await
-                }
-                async fn push_raw(&self, input: $from) -> () {
-                    self.push(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
-                }
-                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
-                    self.$first_name.push_if_empty(input).await
-                }
-                async fn push_raw_if_empty(&self, input: $from) -> () {
-                    self.push_if_empty(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
-                }
-                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<$to>>> {
-                    self.$last_name.try_pop().await
-                }
-                async fn process(&self) -> bool {
-                    let mut is_at_least_one_processed = true;
-                    let mut is_last_processed = false;
-                    while is_at_least_one_processed && !is_last_processed {
-                        is_at_least_one_processed = self.$first_name.process().await;
-                        let next_input = self.$first_name.try_pop().await;
                         $(
-                            if let Some(next_input) = next_input {
-                                self.[<$($field)*>].push(next_input).await;
-                            }
-                            is_at_least_one_processed |= self.[<$($field)*>].process().await;
-                            let next_input = self.[<$($field)*>].try_pop().await;
+                            [<is_running_ $solo_name>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
                         )*
-                        if let Some(next_input) = next_input {
-                            self.$last_name.push(next_input).await;
-                        }
-                        is_last_processed = self.$last_name.process().await;
-                    }
-                    return is_last_processed;
-                }
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! split_merge {
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*)) => {
-        split_merge!(middle $name, $from, $to, false, false, () (0) () (x) () (), $($destination),*);
-    };
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), join) => {
-        split_merge!(middle $name, $from, $to, true, false, () (0) () (x) () (), $($destination),*);
-    };
-    ($name:ty, $from:ty => $to:ty, ($($destination:ty),*), unique) => {
-        split_merge!(middle $name, $from, $to, false, true, () (0) () (x) () (), $($destination),*);
-    };
-    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty) => {
-        paste::paste! {
-            split_merge!(end $name, $from, $to, $is_join, $is_unique, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]));
-        }
-    };
-    (middle $name:ty, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($($bool:tt)*) ($index:expr) ($($index_past:tt)*) ($($prefix:tt)*) ($($past:tt)*) ($($past_type:tt)*), $next:ty, $($destination:ty),*) => {
-        paste::paste! {
-            split_merge!(middle $name, $from, $to, $is_join, $is_unique, ($($bool)* [false]) ($index + 1) ($($index_past)* [$index]) ($($prefix)* x) ($($past)* [$($prefix)* _ $next:snake]) ($($past_type)* [$next]), $($destination),*);
-        }
-    };
-    (end $name:ident, $from:ty, $to:ty, $is_join:expr, $is_unique:expr, ($([$bool:tt])*) ($count:expr) ($([$index:expr])*) ($([$($field:tt)*])*) ($([$field_type:ty])*)) => {
-        paste::paste! {
-            pub struct $name {
-                $(
-                    [<$($field)*>]: std::sync::Arc<$field_type>,
-                )*
-                next_send_field_index: tokio::sync::Mutex<usize>,
-                $(
-                    [<is_running_ $($field)*>]: std::sync::Arc<tokio::sync::Mutex<bool>>,
-                )*
-            }
-
-            pub struct [<$name Initializer>] {
-                $(
-                    pub [<$($field)* _initializer>]: std::sync::Arc<tokio::sync::RwLock<[<$field_type Initializer>]>>,
-                )*
-            }
-
-            impl [<$name Initializer>] {
-                pub fn new($([<$($field)* _initializer>]: [<$field_type Initializer>],)*) -> Self {
-                    [<$name Initializer>] {
+                        next_process_field_index: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
                         $(
-                            [<$($field)* _initializer>]: std::sync::Arc::new(tokio::sync::RwLock::new([<$($field)* _initializer>])),
+                            $first_name: std::sync::Arc::new($first::new(initializer.read().await.$first_name.clone()).await),
+                            $(
+                                $mid_name: std::sync::Arc::new($mid::new(initializer.read().await.$mid_name.clone()).await),
+                            )*
+                            $last_name: std::sync::Arc::new($last::new(initializer.read().await.$last_name.clone()).await),
                         )*
-                    }
-                }
-            }
-
-            impl $name {
-                pub async fn new(initializer: std::sync::Arc<tokio::sync::RwLock<[<$name Initializer>]>>) -> Self {
-                    $name {
                         $(
-                            [<$($field)*>]: std::sync::Arc::new($field_type::new(initializer.read().await.[<$($field)* _initializer>].clone()).await),
-                        )*
-                        next_send_field_index: tokio::sync::Mutex::new(0),
-                        $(
-                            [<is_running_ $($field)*>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
+                            $solo_name: std::sync::Arc::new($solo::new(initializer.read().await.$solo_name.clone()).await),
                         )*
                     }
                 }
                 pub async fn new_raw(initializer: [<$name Initializer>]) -> Self {
-                    $name::new(std::sync::Arc::new(tokio::sync::RwLock::new(initializer))).await
-                }
-            }
-
-            #[async_trait::async_trait]
-            impl $crate::chain::ChainLink for $name {
-                type TInput = $from;
-                type TOutput = $to;
-
-                async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
-                    futures::join!($(self.[<$($field)*>].push(input.clone())),*);
-                }
-                async fn push_raw(&self, input: $from) -> () {
-                    self.push(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
-                }
-                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
-                    futures::join!($(self.[<$($field)*>].push_if_empty(input.clone())),*);
-                }
-                async fn push_raw_if_empty(&self, input: $from) -> () {
-                    self.push_if_empty(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
-                }
-                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<$to>>> {
-
-                    // loop until we have found `Some` or looped around all internal ChainLink instanes
-                    let mut next_send_field_index_lock = self.next_send_field_index.lock().await;
-                    let mut send_attempts_count: usize = 0;
-                    while send_attempts_count < ($count) {
-
-                        // get the next field index to check
-                        let next_send_field_index: usize;
-                        next_send_field_index = *next_send_field_index_lock;
-                        if next_send_field_index + 1 == ($count) {
-                            *next_send_field_index_lock = 0;
-                        }
-                        else {
-                            *next_send_field_index_lock = next_send_field_index + 1;
-                        }
-                        
-                        // get the output for the current field index
-                        let output;
-                        if false {
-                            panic!("False should not be true");
-                        }
+                    $name {
+                        next_try_pop_index: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
                         $(
-                            else if next_send_field_index == ($index) {
-                                output = self.[<$($field)*>].try_pop().await;
-                            }
+                            [<is_running_ $first_name>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
                         )*
-                        else {
-                            panic!("Index out of bounds: next_send_field_index");
-                        }
-
-                        // return the output if `Some`, else try to loop again
-                        if output.is_some() {
-                            return output;
-                        }
-
-                        send_attempts_count += 1;
-                    }
-
-                    // if we've exhausted all internal `ChainLink` instances, return None
-                    return None;
-                }
-                async fn process(&self) -> bool {
-                    if $is_join {
-                        let bool_tuple = futures::join!($(self.[<$($field)*>].process()),*);
-                        let false_tuple = ($($bool),*);
-                        return bool_tuple != false_tuple;
-                    }
-                    else if $is_unique {
                         $(
-                            {
-                                let mut [<locked_is_running_ $($field)*>] = self.[<is_running_ $($field)*>].lock().await;
-                                if !*[<locked_is_running_ $($field)*>] {
-                                    *[<locked_is_running_ $($field)*>] = true;
-                                    let [<$($field)*>] = self.[<$($field)*>].clone();
-                                    let [<is_running_ $($field)*>] = self.[<is_running_ $($field)*>].clone();
-                                    std::thread::spawn(move || {
-                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
-                                            .enable_time()
-                                            .build()
-                                            .unwrap();
+                            [<is_running_ $solo_name>]: std::sync::Arc::new(tokio::sync::Mutex::new(false)),
+                        )*
+                        next_process_field_index: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
+                        $(
+                            $first_name: std::sync::Arc::new($first::new(initializer.$first_name.clone()).await),
+                            $(
+                                $mid_name: std::sync::Arc::new($mid::new(initializer.$mid_name.clone()).await),
+                            )*
+                            $last_name: std::sync::Arc::new($last::new(initializer.$last_name.clone()).await),
+                        )*
+                        $(
+                            $solo_name: std::sync::Arc::new($solo::new(initializer.$solo_name.clone()).await),
+                        )*
+                    }
+                }
 
-                                        tokio_runtime.block_on(async {
-                                            [<$($field)*>].process().await;
-                                            *[<is_running_ $($field)*>].lock().await = false;
-                                        });
-                                    });
+                // useful functions for processing chainlinks
+                $(
+                    async fn [<process_ $first_name>](&self) -> bool {
+                        let mut is_at_least_one_processed = true;
+                        let mut is_last_processed = false;
+                        while is_at_least_one_processed && !is_last_processed {
+                            is_at_least_one_processed = $crate::chain::ChainLink::process(self.$first_name.as_ref()).await;
+                            let next_input = $crate::chain::ChainLink::try_pop(self.$first_name.as_ref()).await;
+                            $(
+                                if let Some(next_input) = next_input {
+                                    $crate::chain::ChainLink::push(self.$mid_name.as_ref(), next_input).await;
                                 }
+                                is_at_least_one_processed |= $crate::chain::ChainLink::process(self.$mid_name.as_ref()).await;
+                                let next_input = $crate::chain::ChainLink::try_pop(self.$mid_name.as_ref()).await;
+                            )*
+                            if let Some(next_input) = next_input {
+                                $crate::chain::ChainLink::push(self.$last_name.as_ref(), next_input).await;
                             }
-                        )*
-                        return false;
+                            is_last_processed = $crate::chain::ChainLink::process(self.$last_name.as_ref()).await;
+                        }
+                        return is_last_processed;
                     }
-                    else {
-                        $(
-                            {
-                                let [<$($field)*>] = self.[<$($field)*>].clone();
+                )*
+
+                // each of these functions represents all of the possible permutations for processing chains
+                async fn process_all_join(&self) -> bool {
+                    let bool_tuple = futures::join!($($crate::chain::ChainLink::process(self.$solo_name.as_ref()),)*$(self.[<process_ $first_name>]()),*);
+                    let false_tuple = ($($bool,)*);
+                    return bool_tuple != false_tuple;
+                }
+                async fn process_all_free(&self) -> bool {
+                    $(
+                        {
+                            let $first_name = self.$first_name.clone();
+                            $(
+                                let $mid_name = self.$mid_name.clone();
+                            )*
+                            let $last_name = self.$last_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    let mut is_at_least_one_processed = true;
+                                    let mut is_last_processed = false;
+                                    while is_at_least_one_processed && !is_last_processed {
+                                        is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
+                                        let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                        $(
+                                            if let Some(next_input) = next_input {
+                                                $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                            }
+                                            is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
+                                            let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                        )*
+                                        if let Some(next_input) = next_input {
+                                            $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                        }
+                                        is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                    }
+                                });
+                            });
+                        }
+                    )*
+                    $(
+                        {
+                            let $solo_name = self.$solo_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                });
+                            });
+                        }
+                    )*
+                    return false;
+                }
+                async fn process_all_unique(&self) -> bool {
+                    $(
+                        {
+                            let mut [<locked_is_running_ $first_name>] = self.[<is_running_ $first_name>].lock().await;
+                            if !*[<locked_is_running_ $first_name>] {
+                                *[<locked_is_running_ $first_name>] = true;
+                                let $first_name = self.$first_name.clone();
+                                $(
+                                    let $mid_name = self.$mid_name.clone();
+                                )*
+                                let $last_name = self.$last_name.clone();
+                                let [<is_running_ $first_name>] = self.[<is_running_ $first_name>].clone();
                                 std::thread::spawn(move || {
                                     let tokio_runtime = tokio::runtime::Builder::new_current_thread()
                                         .enable_time()
@@ -387,17 +385,600 @@ macro_rules! split_merge {
                                         .unwrap();
 
                                     tokio_runtime.block_on(async {
-                                        [<$($field)*>].process().await;
+                                        let mut is_at_least_one_processed = true;
+                                        let mut is_last_processed = false;
+                                        while is_at_least_one_processed && !is_last_processed {
+                                            is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
+                                            let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                            $(
+                                                if let Some(next_input) = next_input {
+                                                    $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                }
+                                                is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
+                                                let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                            )*
+                                            if let Some(next_input) = next_input {
+                                                $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                            }
+                                            is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                        }
+                                        *[<is_running_ $first_name>].lock().await = false;
                                     });
                                 });
                             }
+                        }
+                    )*
+                    $(
+                        {
+                            let mut [<locked_is_running_ $solo_name>] = self.[<is_running_ $solo_name>].lock().await;
+                            if !*[<locked_is_running_ $solo_name>] {
+                                *[<locked_is_running_ $solo_name>] = true;
+                                let $solo_name = self.$solo_name.clone();
+                                let [<is_running_ $solo_name>] = self.[<is_running_ $solo_name>].clone();
+                                std::thread::spawn(move || {
+                                    let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                        .enable_time()
+                                        .build()
+                                        .unwrap();
+
+                                    tokio_runtime.block_on(async {
+                                        $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                        *[<is_running_ $solo_name>].lock().await = false;
+                                    });
+                                });
+                            }
+                        }
+                    )*
+                    return false;
+                }
+                async fn process_one_join(&self) -> bool {
+                    // get the next field to process
+                    let next_process_field_index;
+                    {
+                        let mut locked_next_process_field_index = self.next_process_field_index.lock().await;
+                        next_process_field_index = *locked_next_process_field_index;
+                        if next_process_field_index + 1 == ($count) {
+                            *locked_next_process_field_index = 0;
+                        }
+                        else {
+                            *locked_next_process_field_index = next_process_field_index + 1;
+                        }
+                    }
+
+                    // get the output for the current field index
+                    let output;
+                    if false {
+                        panic!("False should not be true.");
+                    }
+                    $(
+                        else if next_process_field_index == ($chain_index) {
+                            output = self.[<process_ $first_name>]().await;
+                        }
+                    )*
+                    $(
+                        else if next_process_field_index == ($solo_index) {
+                            output = $crate::chain::ChainLink::process(self.$solo_name.as_ref()).await;
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_process_field_index");
+                    }
+                    return output;
+                }
+                async fn process_one_free(&self) -> bool {
+                    // get the next field to process
+                    let next_process_field_index;
+                    {
+                        let mut locked_next_process_field_index = self.next_process_field_index.lock().await;
+                        next_process_field_index = *locked_next_process_field_index;
+                        if next_process_field_index + 1 == ($count) {
+                            *locked_next_process_field_index = 0;
+                        }
+                        else {
+                            *locked_next_process_field_index = next_process_field_index + 1;
+                        }
+                    }
+
+                    // get the output for the current field index
+                    if false {
+                        panic!("False should not be true.");
+                    }
+                    $(
+                        else if next_process_field_index == ($chain_index) {
+                            let $first_name = self.$first_name.clone();
+                            $(
+                                let $mid_name = self.$mid_name.clone();
+                            )*
+                            let $last_name = self.$last_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    let mut is_at_least_one_processed = true;
+                                    let mut is_last_processed = false;
+                                    while is_at_least_one_processed && !is_last_processed {
+                                        is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
+                                        let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                        $(
+                                            if let Some(next_input) = next_input {
+                                                $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                            }
+                                            is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
+                                            let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                        )*
+                                        if let Some(next_input) = next_input {
+                                            $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                        }
+                                        is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                    }
+                                });
+                            });
+                        }
+                    )*
+                    $(
+                        else if next_process_field_index == ($solo_index) {
+                            let $solo_name = self.$solo_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                });
+                            });
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_process_field_index");
+                    }
+                    return false;
+                }
+                async fn process_one_unique(&self) -> bool {
+                    // iterate over all internal chainlinks, potentially
+                    for _ in 0..($count) {
+                        
+                        // get the next field to process
+                        let next_process_field_index;
+                        {
+                            let mut locked_next_process_field_index = self.next_process_field_index.lock().await;
+                            next_process_field_index = *locked_next_process_field_index;
+                            if next_process_field_index + 1 == ($count) {
+                                *locked_next_process_field_index = 0;
+                            }
+                            else {
+                                *locked_next_process_field_index = next_process_field_index + 1;
+                            }
+                        }
+
+                        // get the output for the current field index
+                        if false {
+                            panic!("False should not be true.");
+                        }
+                        $(
+                            else if next_process_field_index == ($chain_index) {
+                                let mut [<locked_is_running_ $first_name>] = self.[<is_running_ $first_name>].lock().await;
+                                if !*[<locked_is_running_ $first_name>] {
+                                    *[<locked_is_running_ $first_name>] = true;
+                                    let $first_name = self.$first_name.clone();
+                                    $(
+                                        let $mid_name = self.$mid_name.clone();
+                                    )*
+                                    let $last_name = self.$last_name.clone();
+                                    let [<is_running_ $first_name>] = self.[<is_running_ $first_name>].clone();
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            let mut is_at_least_one_processed = true;
+                                            let mut is_last_processed = false;
+                                            while is_at_least_one_processed && !is_last_processed {
+                                                is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
+                                                let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                                $(
+                                                    if let Some(next_input) = next_input {
+                                                        $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                    }
+                                                    is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
+                                                    let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                                )*
+                                                if let Some(next_input) = next_input {
+                                                    $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                                }
+                                                is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                            }
+                                            *[<is_running_ $first_name>].lock().await = false;
+                                        });
+                                    });
+
+                                    // only one thread is started
+                                    return false;
+                                }
+                            }
                         )*
-                        return false;
+                        $(
+                            else if next_process_field_index == ($solo_index) {
+                                let mut [<locked_is_running_ $solo_name>] = self.[<is_running_ $solo_name>].lock().await;
+                                if !*[<locked_is_running_ $solo_name>] {
+                                    *[<locked_is_running_ $solo_name>] = true;
+                                    let $solo_name = self.$solo_name.clone();
+                                    let [<is_running_ $solo_name>] = self.[<is_running_ $solo_name>].clone();
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                            *[<is_running_ $solo_name>].lock().await = false;
+                                        });
+                                    });
+
+                                    // only one thread is started
+                                    return false;
+                                }
+                            }
+                        )*
+                        else {
+                            panic!("Index out of bounds: next_process_field_index");
+                        }
+                    }
+
+                    // no threads were started because they were all already running
+                    return false;
+                }
+                async fn process_random_join(&self) -> bool {
+                    let next_process_field_index;
+                    {
+                        use rand::Rng;
+
+                        // get the next field to process
+                        let mut rng = rand::thread_rng();
+                        next_process_field_index = rng.gen_range(0..($count));
+                    }
+
+                    // get the output for the current field index
+                    let output;
+                    if false {
+                        panic!("False should not be true.");
+                    }
+                    $(
+                        else if next_process_field_index == ($chain_index) {
+                            output = self.[<process_ $first_name>]().await;
+                        }
+                    )*
+                    $(
+                        else if next_process_field_index == ($solo_index) {
+                            output = $crate::chain::ChainLink::process(self.$solo_name.as_ref()).await;
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_process_field_index");
+                    }
+                    return output;
+                }
+                async fn process_random_free(&self) -> bool {
+                    let next_process_field_index;
+                    {
+                        use rand::Rng;
+
+                        // get the next field to process
+                        let mut rng = rand::thread_rng();
+                        next_process_field_index = rng.gen_range(0..($count));
+                    }
+
+                    // get the output for the current field index
+                    if false {
+                        panic!("False should not be true.");
+                    }
+                    $(
+                        else if next_process_field_index == ($chain_index) {
+                            let $first_name = self.$first_name.clone();
+                            $(
+                                let $mid_name = self.$mid_name.clone();
+                            )*
+                            let $last_name = self.$last_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    let mut is_at_least_one_processed = true;
+                                    let mut is_last_processed = false;
+                                    while is_at_least_one_processed && !is_last_processed {
+                                        is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
+                                        let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                        $(
+                                            if let Some(next_input) = next_input {
+                                                $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                            }
+                                            is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
+                                            let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                        )*
+                                        if let Some(next_input) = next_input {
+                                            $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                        }
+                                        is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                    }
+                                });
+                            });
+                        }
+                    )*
+                    $(
+                        else if next_process_field_index == ($solo_index) {
+                            let $solo_name = self.$solo_name.clone();
+                            std::thread::spawn(move || {
+                                let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                    .enable_time()
+                                    .build()
+                                    .unwrap();
+
+                                tokio_runtime.block_on(async {
+                                    $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                });
+                            });
+                        }
+                    )*
+                    else {
+                        panic!("Index out of bounds: next_process_field_index");
+                    }
+                    return false;
+                }
+                async fn process_random_unique(&self) -> bool {
+                    
+                    // create a mapping of indexes to attempt before exhausting all indexes
+                    let mut mapped_next_process_field_index: Vec<usize> = (0..($count)).collect();
+                    {
+                        use rand::seq::SliceRandom;
+
+                        mapped_next_process_field_index.shuffle(&mut rand::thread_rng());
+                    }
+
+                    // cycle over all field indexes until one is found
+                    for _ in 0..($count) {
+
+                        // get the next field to process
+                        let next_process_field_index;
+                        {
+                            let mut locked_next_process_field_index = self.next_process_field_index.lock().await;
+                            next_process_field_index = *locked_next_process_field_index;
+                            if next_process_field_index + 1 == ($count) {
+                                *locked_next_process_field_index = 0;
+                            }
+                            else {
+                                *locked_next_process_field_index = next_process_field_index + 1;
+                            }
+                        }
+
+                        let next_process_field_index = mapped_next_process_field_index[next_process_field_index];
+
+                        // get the output for the current field index
+                        if false {
+                            panic!("False should not be true.");
+                        }
+                        $(
+                            else if next_process_field_index == ($chain_index) {
+                                let mut [<locked_is_running_ $first_name>] = self.[<is_running_ $first_name>].lock().await;
+                                if !*[<locked_is_running_ $first_name>] {
+                                    *[<locked_is_running_ $first_name>] = true;
+                                    let $first_name = self.$first_name.clone();
+                                    $(
+                                        let $mid_name = self.$mid_name.clone();
+                                    )*
+                                    let $last_name = self.$last_name.clone();
+                                    let [<is_running_ $first_name>] = self.[<is_running_ $first_name>].clone();
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            let mut is_at_least_one_processed = true;
+                                            let mut is_last_processed = false;
+                                            while is_at_least_one_processed && !is_last_processed {
+                                                is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
+                                                let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                                $(
+                                                    if let Some(next_input) = next_input {
+                                                        $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                    }
+                                                    is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
+                                                    let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                                )*
+                                                if let Some(next_input) = next_input {
+                                                    $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                                }
+                                                is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                            }
+                                            *[<is_running_ $first_name>].lock().await = false;
+                                        });
+                                    });
+
+                                    // only one thread is started
+                                    return false;
+                                }
+                            }
+                        )*
+                        $(
+                            else if next_process_field_index == ($solo_index) {
+                                let mut [<locked_is_running_ $solo_name>] = self.[<is_running_ $solo_name>].lock().await;
+                                if !*[<locked_is_running_ $solo_name>] {
+                                    *[<locked_is_running_ $solo_name>] = true;
+                                    let $solo_name = self.$solo_name.clone();
+                                    let [<is_running_ $solo_name>] = self.[<is_running_ $solo_name>].clone();
+                                    std::thread::spawn(move || {
+                                        let tokio_runtime = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time()
+                                            .build()
+                                            .unwrap();
+
+                                        tokio_runtime.block_on(async {
+                                            $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                            *[<is_running_ $solo_name>].lock().await = false;
+                                        });
+                                    });
+
+                                    // only one thread is started
+                                    return false;
+                                }
+                            }
+                        )*
+                        else {
+                            panic!("Index out of bounds: next_process_field_index");
+                        }
+                    }
+
+                    // no threads were started because they were all already running
+                    return false;
+                }
+            }
+
+            #[async_trait::async_trait]
+            impl $crate::chain::ChainLink for $name {
+                type TInput = $from;
+                type TOutput = $to;
+
+                async fn push(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
+                    let mut push_futures = vec![];
+                    $(
+                        push_futures.push(self.$first_name.push(input.clone()));
+                    )*
+                    $(
+                        push_futures.push(self.$solo_name.push(input.clone()));
+                    )*
+                    futures::future::join_all(push_futures).await;
+                }
+                async fn push_raw(&self, input: $from) -> () {
+                    self.push(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
+                }
+                async fn push_if_empty(&self, input: std::sync::Arc<tokio::sync::RwLock<$from>>) -> () {
+                    let mut futures = vec![];
+                    $(
+                        futures.push(self.$first_name.push_if_empty(input.clone()));
+                    )*
+                    $(
+                        futures.push(self.$solo_name.push_if_empty(input.clone()));
+                    )*
+                    futures::future::join_all(futures).await;
+                }
+                async fn push_raw_if_empty(&self, input: $from) -> () {
+                    self.push_if_empty(std::sync::Arc::new(tokio::sync::RwLock::new(input))).await
+                }
+                async fn try_pop(&self) -> Option<std::sync::Arc<tokio::sync::RwLock<$to>>> {
+                    
+                    let mut locked_next_try_pop_index = self.next_try_pop_index.lock().await;
+                    let mut try_pop_attempt_count: usize = 0;
+                    while try_pop_attempt_count < ($count) {
+
+                        // get the next index to check
+                        let next_try_pop_index: usize = *locked_next_try_pop_index;
+                        if next_try_pop_index + 1 == ($count) {
+                            *locked_next_try_pop_index = 0;
+                        }
+                        else {
+                            *locked_next_try_pop_index = next_try_pop_index + 1;
+                        }
+
+                        // get the popped output for the current index
+                        let output;
+                        if false {
+                            panic!("False should not be true.");
+                        }
+                        $(
+                            else if next_try_pop_index == ($solo_index) {
+                                output = self.$solo_name.try_pop().await;
+                            }
+                        )*
+                        $(
+                            else if next_try_pop_index == ($chain_index) {
+                                output = self.$last_name.try_pop().await;
+                            }
+                        )*
+                        else {
+                            panic!("Index out of bound: next_try_pop_index");
+                        }
+
+                        if output.is_some() {
+                            return output;
+                        }
+
+                        try_pop_attempt_count += 1;
+                    }
+
+                    // if the parallel set of ChainLinks have been exhausted
+                    return None;
+                }
+                async fn process(&self) -> bool {
+                    let mode = stringify!($mode);
+                    let choice = stringify!($choice);
+                    match mode {
+                        "join" => {
+                            match choice {
+                                "all" => {
+                                    self.process_all_join().await
+                                },
+                                "one" => {
+                                    self.process_one_join().await
+                                },
+                                "random" => {
+                                    self.process_random_join().await
+                                }
+                                _ => {
+                                    panic!("Unexpected choice {}", choice);
+                                }
+                            }
+                        },
+                        "free" => {
+                            match choice {
+                                "all" => {
+                                    self.process_all_free().await
+                                },
+                                "one" => {
+                                    self.process_one_free().await
+                                },
+                                "random" => {
+                                    self.process_random_free().await
+                                }
+                                _ => {
+                                    panic!("Unexpected choice {}", choice);
+                                }
+                            }
+                        },
+                        "unique" => {
+                            match choice {
+                                "all" => {
+                                    self.process_all_unique().await
+                                },
+                                "one" => {
+                                    self.process_one_unique().await
+                                },
+                                "random" => {
+                                    self.process_random_unique().await
+                                }
+                                _ => {
+                                    panic!("Unexpected choice {}", choice);
+                                }
+                            }
+                        },
+                        _ => {
+                            panic!("Unexpected mode {}", mode);
+                        }
                     }
                 }
             }
         }
-    }
+    };
 }
 
 #[macro_export]
@@ -545,8 +1126,7 @@ macro_rules! duplicate {
                     else {
                         self.inner_chainlinks
                             .iter()
-                            .enumerate()
-                            .for_each(|(i, c)| {
+                            .for_each(|c| {
                                 let inner_chainlink = c.clone();
                                 std::thread::spawn(move || {
                                     let tokio_runtime = tokio::runtime::Builder::new_current_thread()
