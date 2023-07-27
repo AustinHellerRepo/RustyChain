@@ -2,6 +2,7 @@ pub use async_trait::async_trait;
 pub use paste::paste;
 pub use tokio::{sync::{RwLock, Mutex}, runtime::Builder};
 pub use futures::{join, future::join_all};
+pub use rand::{Rng, thread_rng, seq::SliceRandom};
 
 #[async_trait]
 pub trait ChainLink {
@@ -641,10 +642,10 @@ macro_rules! chain {
                 async fn process_random_join(&self) -> bool {
                     let next_process_field_index;
                     {
-                        use rand::Rng;
+                        use $crate::Rng;
 
                         // get the next field to process
-                        let mut rng = rand::thread_rng();
+                        let mut rng = $crate::thread_rng();
                         next_process_field_index = rng.gen_range(0..($count));
                     }
 
@@ -671,10 +672,10 @@ macro_rules! chain {
                 async fn process_random_free(&self) -> bool {
                     let next_process_field_index;
                     {
-                        use rand::Rng;
+                        use $crate::Rng;
 
                         // get the next field to process
-                        let mut rng = rand::thread_rng();
+                        let mut rng = $crate::thread_rng();
                         next_process_field_index = rng.gen_range(0..($count));
                     }
 
@@ -742,9 +743,9 @@ macro_rules! chain {
                     // create a mapping of indexes to attempt before exhausting all indexes
                     let mut mapped_next_process_field_index: Vec<usize> = (0..($count)).collect();
                     {
-                        use rand::seq::SliceRandom;
+                        use $crate::SliceRandom;
 
-                        mapped_next_process_field_index.shuffle(&mut rand::thread_rng());
+                        mapped_next_process_field_index.shuffle(&mut $crate::thread_rng());
                     }
 
                     // cycle over all field indexes until one is found
