@@ -544,4 +544,40 @@ mod test {
         chain!(FourChainSoloTwoChainRandomUnique, String => String, [ToLower => ToUpper => ToUpper => ToLower, ToUpper, ToLower => ToLower]: (random unique));
         chain!(TwoChainTwoChainRandomUnique, String => String, [ToLower => ToUpper, ToUpper => ToLower]: (random unique));
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn chainlink_contains_chainlink() {
+
+        chain_link!(Container => (other: Arc<dyn ChainLink<TInput = (), TOutput = String> + Send + Sync>), input: () => (), {
+            match input.received {
+                Some(_) => {
+                    let read_initializer = input.initializer.read().await;
+                    read_initializer.other.push_raw(()).await;
+                    read_initializer.other.process().await;
+                    let text = read_initializer.other.try_pop().await;
+                    println!("{}", text.expect("The inner ChainLink should provide a string.").read().await);
+                    Some(())
+                },
+                None => None
+            }
+        });
+
+        chain_link!(Inner, input: () => String, {
+            match input.received {
+                Some(_) => {
+                    Some(String::from("Success!"))
+                },
+                None => None
+            }
+        });
+
+        let container = Container::new_raw(ContainerInitializer {
+            other: Arc::new(Inner::new_raw(InnerInitializer { }).await)
+        }).await;
+
+        container.push_raw(()).await;
+        container.process().await;
+        container.try_pop().await;
+
+    }
 }
