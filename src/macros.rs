@@ -41,7 +41,7 @@ macro_rules! chain_link {
             }
 
             #[$crate::async_trait]
-            impl $crate::chain::ChainLink for $type {
+            impl $crate::framework::ChainLink for $type {
                 type TInput = $receive_type;
                 type TOutput = $output_type;
 
@@ -280,19 +280,19 @@ macro_rules! chain {
                         let mut is_at_least_one_processed = true;
                         let mut is_last_processed = false;
                         while is_at_least_one_processed && !is_last_processed {
-                            is_at_least_one_processed = $crate::chain::ChainLink::process(self.$first_name.as_ref()).await;
-                            let next_input = $crate::chain::ChainLink::try_pop(self.$first_name.as_ref()).await;
+                            is_at_least_one_processed = $crate::framework::ChainLink::process(self.$first_name.as_ref()).await;
+                            let next_input = $crate::framework::ChainLink::try_pop(self.$first_name.as_ref()).await;
                             $(
                                 if let Some(next_input) = next_input {
-                                    $crate::chain::ChainLink::push(self.$mid_name.as_ref(), next_input).await;
+                                    $crate::framework::ChainLink::push(self.$mid_name.as_ref(), next_input).await;
                                 }
-                                is_at_least_one_processed |= $crate::chain::ChainLink::process(self.$mid_name.as_ref()).await;
-                                let next_input = $crate::chain::ChainLink::try_pop(self.$mid_name.as_ref()).await;
+                                is_at_least_one_processed |= $crate::framework::ChainLink::process(self.$mid_name.as_ref()).await;
+                                let next_input = $crate::framework::ChainLink::try_pop(self.$mid_name.as_ref()).await;
                             )*
                             if let Some(next_input) = next_input {
-                                $crate::chain::ChainLink::push(self.$last_name.as_ref(), next_input).await;
+                                $crate::framework::ChainLink::push(self.$last_name.as_ref(), next_input).await;
                             }
-                            is_last_processed = $crate::chain::ChainLink::process(self.$last_name.as_ref()).await;
+                            is_last_processed = $crate::framework::ChainLink::process(self.$last_name.as_ref()).await;
                         }
                         return is_last_processed;
                     }
@@ -300,7 +300,7 @@ macro_rules! chain {
 
                 // each of these functions represents all of the possible permutations for processing chains
                 async fn process_all_join(&self) -> bool {
-                    let bool_tuple = $crate::join!($($crate::chain::ChainLink::process(self.$solo_name.as_ref()),)*$(self.[<process_ $first_name>]()),*);
+                    let bool_tuple = $crate::join!($($crate::framework::ChainLink::process(self.$solo_name.as_ref()),)*$(self.[<process_ $first_name>]()),*);
                     let false_tuple = ($($bool,)*);
                     return bool_tuple != false_tuple;
                 }
@@ -322,19 +322,19 @@ macro_rules! chain {
                                     let mut is_at_least_one_processed = true;
                                     let mut is_last_processed = false;
                                     while is_at_least_one_processed && !is_last_processed {
-                                        is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
-                                        let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                        is_at_least_one_processed = $crate::framework::ChainLink::process($first_name.as_ref()).await;
+                                        let next_input = $crate::framework::ChainLink::try_pop($first_name.as_ref()).await;
                                         $(
                                             if let Some(next_input) = next_input {
-                                                $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                $crate::framework::ChainLink::push($mid_name.as_ref(), next_input).await;
                                             }
-                                            is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
-                                            let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                            is_at_least_one_processed |= $crate::framework::ChainLink::process($mid_name.as_ref()).await;
+                                            let next_input = $crate::framework::ChainLink::try_pop($mid_name.as_ref()).await;
                                         )*
                                         if let Some(next_input) = next_input {
-                                            $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                            $crate::framework::ChainLink::push($last_name.as_ref(), next_input).await;
                                         }
-                                        is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                        is_last_processed = $crate::framework::ChainLink::process($last_name.as_ref()).await;
                                     }
                                 });
                             });
@@ -350,7 +350,7 @@ macro_rules! chain {
                                     .unwrap();
 
                                 tokio_runtime.block_on(async {
-                                    $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                    $crate::framework::ChainLink::process($solo_name.as_ref()).await;
                                 });
                             });
                         }
@@ -379,19 +379,19 @@ macro_rules! chain {
                                         let mut is_at_least_one_processed = true;
                                         let mut is_last_processed = false;
                                         while is_at_least_one_processed && !is_last_processed {
-                                            is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
-                                            let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                            is_at_least_one_processed = $crate::framework::ChainLink::process($first_name.as_ref()).await;
+                                            let next_input = $crate::framework::ChainLink::try_pop($first_name.as_ref()).await;
                                             $(
                                                 if let Some(next_input) = next_input {
-                                                    $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                    $crate::framework::ChainLink::push($mid_name.as_ref(), next_input).await;
                                                 }
-                                                is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
-                                                let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                                is_at_least_one_processed |= $crate::framework::ChainLink::process($mid_name.as_ref()).await;
+                                                let next_input = $crate::framework::ChainLink::try_pop($mid_name.as_ref()).await;
                                             )*
                                             if let Some(next_input) = next_input {
-                                                $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                                $crate::framework::ChainLink::push($last_name.as_ref(), next_input).await;
                                             }
-                                            is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                            is_last_processed = $crate::framework::ChainLink::process($last_name.as_ref()).await;
                                         }
                                         *[<is_running_ $first_name>].lock().await = false;
                                     });
@@ -413,7 +413,7 @@ macro_rules! chain {
                                         .unwrap();
 
                                     tokio_runtime.block_on(async {
-                                        $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                        $crate::framework::ChainLink::process($solo_name.as_ref()).await;
                                         *[<is_running_ $solo_name>].lock().await = false;
                                     });
                                 });
@@ -448,7 +448,7 @@ macro_rules! chain {
                     )*
                     $(
                         else if next_process_field_index == ($solo_index) {
-                            output = $crate::chain::ChainLink::process(self.$solo_name.as_ref()).await;
+                            output = $crate::framework::ChainLink::process(self.$solo_name.as_ref()).await;
                         }
                     )*
                     else {
@@ -491,19 +491,19 @@ macro_rules! chain {
                                     let mut is_at_least_one_processed = true;
                                     let mut is_last_processed = false;
                                     while is_at_least_one_processed && !is_last_processed {
-                                        is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
-                                        let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                        is_at_least_one_processed = $crate::framework::ChainLink::process($first_name.as_ref()).await;
+                                        let next_input = $crate::framework::ChainLink::try_pop($first_name.as_ref()).await;
                                         $(
                                             if let Some(next_input) = next_input {
-                                                $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                $crate::framework::ChainLink::push($mid_name.as_ref(), next_input).await;
                                             }
-                                            is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
-                                            let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                            is_at_least_one_processed |= $crate::framework::ChainLink::process($mid_name.as_ref()).await;
+                                            let next_input = $crate::framework::ChainLink::try_pop($mid_name.as_ref()).await;
                                         )*
                                         if let Some(next_input) = next_input {
-                                            $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                            $crate::framework::ChainLink::push($last_name.as_ref(), next_input).await;
                                         }
-                                        is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                        is_last_processed = $crate::framework::ChainLink::process($last_name.as_ref()).await;
                                     }
                                 });
                             });
@@ -519,7 +519,7 @@ macro_rules! chain {
                                     .unwrap();
 
                                 tokio_runtime.block_on(async {
-                                    $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                    $crate::framework::ChainLink::process($solo_name.as_ref()).await;
                                 });
                             });
                         }
@@ -571,19 +571,19 @@ macro_rules! chain {
                                             let mut is_at_least_one_processed = true;
                                             let mut is_last_processed = false;
                                             while is_at_least_one_processed && !is_last_processed {
-                                                is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
-                                                let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                                is_at_least_one_processed = $crate::framework::ChainLink::process($first_name.as_ref()).await;
+                                                let next_input = $crate::framework::ChainLink::try_pop($first_name.as_ref()).await;
                                                 $(
                                                     if let Some(next_input) = next_input {
-                                                        $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                        $crate::framework::ChainLink::push($mid_name.as_ref(), next_input).await;
                                                     }
-                                                    is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
-                                                    let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                                    is_at_least_one_processed |= $crate::framework::ChainLink::process($mid_name.as_ref()).await;
+                                                    let next_input = $crate::framework::ChainLink::try_pop($mid_name.as_ref()).await;
                                                 )*
                                                 if let Some(next_input) = next_input {
-                                                    $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                                    $crate::framework::ChainLink::push($last_name.as_ref(), next_input).await;
                                                 }
-                                                is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                                is_last_processed = $crate::framework::ChainLink::process($last_name.as_ref()).await;
                                             }
                                             *[<is_running_ $first_name>].lock().await = false;
                                         });
@@ -608,7 +608,7 @@ macro_rules! chain {
                                             .unwrap();
 
                                         tokio_runtime.block_on(async {
-                                            $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                            $crate::framework::ChainLink::process($solo_name.as_ref()).await;
                                             *[<is_running_ $solo_name>].lock().await = false;
                                         });
                                     });
@@ -648,7 +648,7 @@ macro_rules! chain {
                     )*
                     $(
                         else if next_process_field_index == ($solo_index) {
-                            output = $crate::chain::ChainLink::process(self.$solo_name.as_ref()).await;
+                            output = $crate::framework::ChainLink::process(self.$solo_name.as_ref()).await;
                         }
                     )*
                     else {
@@ -687,19 +687,19 @@ macro_rules! chain {
                                     let mut is_at_least_one_processed = true;
                                     let mut is_last_processed = false;
                                     while is_at_least_one_processed && !is_last_processed {
-                                        is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
-                                        let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                        is_at_least_one_processed = $crate::framework::ChainLink::process($first_name.as_ref()).await;
+                                        let next_input = $crate::framework::ChainLink::try_pop($first_name.as_ref()).await;
                                         $(
                                             if let Some(next_input) = next_input {
-                                                $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                $crate::framework::ChainLink::push($mid_name.as_ref(), next_input).await;
                                             }
-                                            is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
-                                            let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                            is_at_least_one_processed |= $crate::framework::ChainLink::process($mid_name.as_ref()).await;
+                                            let next_input = $crate::framework::ChainLink::try_pop($mid_name.as_ref()).await;
                                         )*
                                         if let Some(next_input) = next_input {
-                                            $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                            $crate::framework::ChainLink::push($last_name.as_ref(), next_input).await;
                                         }
-                                        is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                        is_last_processed = $crate::framework::ChainLink::process($last_name.as_ref()).await;
                                     }
                                 });
                             });
@@ -715,7 +715,7 @@ macro_rules! chain {
                                     .unwrap();
 
                                 tokio_runtime.block_on(async {
-                                    $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                    $crate::framework::ChainLink::process($solo_name.as_ref()).await;
                                 });
                             });
                         }
@@ -778,19 +778,19 @@ macro_rules! chain {
                                             let mut is_at_least_one_processed = true;
                                             let mut is_last_processed = false;
                                             while is_at_least_one_processed && !is_last_processed {
-                                                is_at_least_one_processed = $crate::chain::ChainLink::process($first_name.as_ref()).await;
-                                                let next_input = $crate::chain::ChainLink::try_pop($first_name.as_ref()).await;
+                                                is_at_least_one_processed = $crate::framework::ChainLink::process($first_name.as_ref()).await;
+                                                let next_input = $crate::framework::ChainLink::try_pop($first_name.as_ref()).await;
                                                 $(
                                                     if let Some(next_input) = next_input {
-                                                        $crate::chain::ChainLink::push($mid_name.as_ref(), next_input).await;
+                                                        $crate::framework::ChainLink::push($mid_name.as_ref(), next_input).await;
                                                     }
-                                                    is_at_least_one_processed |= $crate::chain::ChainLink::process($mid_name.as_ref()).await;
-                                                    let next_input = $crate::chain::ChainLink::try_pop($mid_name.as_ref()).await;
+                                                    is_at_least_one_processed |= $crate::framework::ChainLink::process($mid_name.as_ref()).await;
+                                                    let next_input = $crate::framework::ChainLink::try_pop($mid_name.as_ref()).await;
                                                 )*
                                                 if let Some(next_input) = next_input {
-                                                    $crate::chain::ChainLink::push($last_name.as_ref(), next_input).await;
+                                                    $crate::framework::ChainLink::push($last_name.as_ref(), next_input).await;
                                                 }
-                                                is_last_processed = $crate::chain::ChainLink::process($last_name.as_ref()).await;
+                                                is_last_processed = $crate::framework::ChainLink::process($last_name.as_ref()).await;
                                             }
                                             *[<is_running_ $first_name>].lock().await = false;
                                         });
@@ -815,7 +815,7 @@ macro_rules! chain {
                                             .unwrap();
 
                                         tokio_runtime.block_on(async {
-                                            $crate::chain::ChainLink::process($solo_name.as_ref()).await;
+                                            $crate::framework::ChainLink::process($solo_name.as_ref()).await;
                                             *[<is_running_ $solo_name>].lock().await = false;
                                         });
                                     });
@@ -836,7 +836,7 @@ macro_rules! chain {
             }
 
             #[$crate::async_trait]
-            impl $crate::chain::ChainLink for $name {
+            impl $crate::framework::ChainLink for $name {
                 type TInput = $from;
                 type TOutput = $to;
 
@@ -1025,13 +1025,13 @@ macro_rules! duplicate {
             }
 
             #[$crate::async_trait]
-            impl $crate::chain::ChainLink for $name {
+            impl $crate::framework::ChainLink for $name {
                 type TInput = $from;
                 type TOutput = $to;
 
                 async fn push(&self, input: std::sync::Arc<$crate::RwLock<$from>>) -> () {
                     for chainlink in self.inner_chainlinks.iter() {
-                        $crate::chain::ChainLink::push(chainlink.as_ref(), input.clone()).await;
+                        $crate::framework::ChainLink::push(chainlink.as_ref(), input.clone()).await;
                         //chainlink.push(input.clone()).await;
                     }
                 }
@@ -1040,7 +1040,7 @@ macro_rules! duplicate {
                 }
                 async fn push_if_empty(&self, input: std::sync::Arc<$crate::RwLock<$from>>) -> () {
                     for chainlink in self.inner_chainlinks.iter() {
-                        $crate::chain::ChainLink::push_if_empty(chainlink.as_ref(), input.clone()).await;
+                        $crate::framework::ChainLink::push_if_empty(chainlink.as_ref(), input.clone()).await;
                     }
                 }
                 async fn push_raw_if_empty(&self, input: $from) -> () {

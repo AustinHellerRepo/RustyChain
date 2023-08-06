@@ -1,5 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
+use rusty_chain::framework::ChainLink;
+
 mod mapper_example {
 
     use std::time::Duration;
@@ -100,7 +102,6 @@ mod mapper_example {
 #[tokio::main]
 async fn main() {
     use mapper_example::*;
-    use rusty_chain::macros::*;
 
     let mapper = Arc::new(GetParentById::new_raw(
         GetParentByIdInitializer {
