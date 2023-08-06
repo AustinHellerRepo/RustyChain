@@ -1,4 +1,4 @@
-use rusty_chain::chain::ChainLink;
+use rusty_chain::macros::ChainLink;
 use work_order::{work_assignment_manager::WorkAssignmentManagerInitializer, model::{WorkSystemCache, OrderEvent, Order, WorkType, Customer, WorkerAvailability, Worker}, work_processor::{WorkProcessor, WorkProcessorInitializer}, unit_of_work_manager::UnitOfWorkManagerInitializer};
 
 mod work_order {
@@ -223,7 +223,7 @@ mod work_order {
     }
 
     pub mod work_processor {
-        use rusty_chain::chain;
+        use rusty_chain::macros;
         use super::{unit_of_work_manager::{UnitOfWorkManager, UnitOfWorkManagerInitializer}, work_assignment_manager::{WorkAssignmentManager, WorkAssignmentManagerInitializer}, model::OrderEvent};
 
         // the chain of processing from an order event to a processed work order

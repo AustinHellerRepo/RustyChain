@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use madlib::{SpeechPart, MadlibConstructor, MadlibConstructionInitializer, CollectConstructedMadlibPartsInitializer, MadlibPart};
-use rusty_chain::chain::ChainLink;
+use rusty_chain::macros::ChainLink;
 
 
 mod madlib {
     use std::collections::HashMap;
     use rand::seq::SliceRandom;
-    use rusty_chain::{chain_link, chain};
+    use rusty_chain::{chain_link, macros};
 
     #[derive(Clone)]
     pub enum MadlibPart {

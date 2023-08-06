@@ -2,7 +2,7 @@
 mod test {
     use std::{sync::Arc, time::Duration};
     use tokio::sync::RwLock;
-    use crate::chain::ChainLink;
+    use crate::macros::ChainLink;
 
     #[derive(Debug, PartialEq)]
     pub enum SomeInput {

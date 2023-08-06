@@ -1,5 +1,5 @@
 use std::io::Write;
-use rusty_chain::chain::ChainLink;
+use rusty_chain::macros::ChainLink;
 use tempfile::NamedTempFile;
 
 use crate::etl::{etl_process::{EtlProcess, EtlProcessInitializer}, read_file::ReadFromFileInitializer, parse::ParseStringToCustomerInitializer, database::{InsertCustomerIntoDatabaseInitializer, DatabaseRepository}};
@@ -133,7 +133,7 @@ mod etl {
 
     // example filename: "etl_process.rs"
     pub mod etl_process {
-        use rusty_chain::chain;
+        use rusty_chain::macros;
         use super::{read_file::{ReadFromFile, ReadFromFileInitializer}, parse::{ParseStringToCustomer, ParseStringToCustomerInitializer}, database::{InsertCustomerIntoDatabase, InsertCustomerIntoDatabaseInitializer}};
 
         // this single line creates the EtlProcess chain

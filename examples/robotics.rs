@@ -1,6 +1,6 @@
 use std::time::Duration;
 use robotics::{automated_robot::{AutomatedRobot, AutomatedRobotInitializer}, sensory_split::SensorySplitInitializer, camera_sensor::CameraSensorInitializer, sensor_processor::SensorProcessorInitializer, robot_interface::RobotInterfaceInitializer, dependency::{Robot, Controller, Camera}, controller_sensor::ControllerSensorInitializer};
-use rusty_chain::chain::ChainLink;
+use rusty_chain::macros::ChainLink;
 
 mod robotics {
 
@@ -313,7 +313,7 @@ mod robotics {
     }
 
     pub mod sensory_split {
-        use rusty_chain::chain;
+        use rusty_chain::macros;
 
         use super::{model::SensorData, controller_sensor::{ControllerSensor, ControllerSensorInitializer}, camera_sensor::{CameraSensor, CameraSensorInitializer}};
 
@@ -329,7 +329,7 @@ mod robotics {
     }
 
     pub mod automated_robot {
-        use rusty_chain::chain;
+        use rusty_chain::macros;
         use super::{sensory_split::{SensorySplit, SensorySplitInitializer}, sensor_processor::{SensorProcessor, SensorProcessorInitializer}, robot_interface::{RobotInterface, RobotInterfaceInitializer}};
 
         chain!(AutomatedRobot,

@@ -2,7 +2,7 @@
 // This example demonstrates a recursive example
 
 use fibonacci::sequence::{FibonacciSequence, FibonacciSequenceInitializer};
-use rusty_chain::chain::ChainLink;
+use rusty_chain::macros::ChainLink;
 
 mod fibonacci {
 

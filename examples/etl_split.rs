@@ -1,5 +1,5 @@
 use std::io::Write;
-use rusty_chain::chain::ChainLink;
+use rusty_chain::macros::ChainLink;
 use tempfile::NamedTempFile;
 
 use crate::etl::{etl_process::{EtlProcess, EtlProcessInitializer}, read_file::ReadFromFileInitializer, parse::ParseStringToCustomerInitializer, separate_database::SeparateDatabaseSplitMergeInitializer, database::{InsertCustomerIntoDatabaseInitializer, DatabaseRepository}};
@@ -139,7 +139,7 @@ mod etl {
     }
 
     pub mod separate_database {
-        use rusty_chain::chain;
+        use rusty_chain::macros;
 
         use super::{models::Customer, database::{InsertCustomerIntoDatabase, InsertCustomerIntoDatabaseInitializer}};
 
@@ -156,7 +156,7 @@ mod etl {
 
     // example filename: "etl_process.rs"
     pub mod etl_process {
-        use rusty_chain::chain;
+        use rusty_chain::macros;
         use super::{read_file::{ReadFromFile, ReadFromFileInitializer}, parse::{ParseStringToCustomer, ParseStringToCustomerInitializer}, separate_database::{SeparateDatabaseSplitMerge, SeparateDatabaseSplitMergeInitializer}};
 
         chain!(EtlProcess,
